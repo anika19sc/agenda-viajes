@@ -1,0 +1,42 @@
+<ion-app>
+  <ion-menu contentId="main-content" type="overlay">
+    <ion-header class="ion-no-border">
+      <div style="background-color: #1b3a61;" class="p-6 pt-12 text-center">
+        <img src="assets/logo.jpg" alt="VozRuta Logo"
+          class="w-20 h-20 rounded-full mx-auto mb-4 shadow-lg border-2 border-white">
+        <h2 class="text-white font-normal text-lg tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">{{
+          greeting }}</h2>
+      </div>
+    </ion-header>
+
+    <ion-content class="ion-padding-vertical">
+      <ion-list lines="none">
+        <ion-menu-toggle auto-hide="false">
+          <ion-item routerLink="/home" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}"
+            detail="false" class="menu-item mb-2" style="--background: transparent;">
+            <ion-icon slot="start" name="list-outline" style="color: #1b3a61;"></ion-icon>
+            <ion-label style="font-weight: 700; color: #1b3a61;">Registros</ion-label>
+          </ion-item>
+
+          <ion-item routerLink="/revenue" routerLinkActive="active" detail="false" class="menu-item mb-2"
+            style="--background: transparent;">
+            <ion-icon slot="start" name="cash-outline" style="color: #1b3a61;"></ion-icon>
+            <ion-label style="font-weight: 700; color: #1b3a61;">Recaudación</ion-label>
+          </ion-item>
+
+          <ion-item routerLink="/about" routerLinkActive="active" detail="false" class="menu-item"
+            style="--background: transparent;">
+            <ion-icon slot="start" name="information-circle-outline" style="color: #1b3a61;"></ion-icon>
+            <ion-label style="font-weight: 700; color: #1b3a61;">Acerca de</ion-label>
+          </ion-item>
+        </ion-menu-toggle>
+      </ion-list>
+    </ion-content>
+
+    <ion-footer class="ion-no-border p-4 text-center text-slate-400 text-xs">
+      v1.0.0 &bull; VozRuta &copy; 2026
+    </ion-footer>
+  </ion-menu>
+
+  <ion-router-outlet id="main-content"></ion-router-outlet>
+</ion-app>

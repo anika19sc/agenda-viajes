@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VozRuta</string>
+    <string name="title_activity_main">VozRuta</string>
+    <string name="package_name">com.taxidriver.agenda</string>
+    <string name="custom_url_scheme">com.taxidriver.agenda</string>
+</resources>

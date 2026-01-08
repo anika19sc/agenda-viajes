@@ -1,0 +1,103 @@
+<ion-header class="ion-no-border">
+  <div style="background-color: #1b3a61;" class="p-4 pt-8 text-white">
+    <div class="flex justify-between items-center mb-4">
+      <ion-buttons slot="start">
+        <ion-menu-button color="light"></ion-menu-button>
+      </ion-buttons>
+      <div class="text-center flex-1">
+        <h2 class="text-lg font-bold m-0 uppercase tracking-widest">RECAUDACIÓN</h2>
+      </div>
+      <div class="w-12"></div>
+    </div>
+
+    <!-- Daily Total -->
+    <div style="background-color: #49bfa8;" class="rounded-2xl p-6 text-center shadow-lg text-white mb-4">
+      <p class="text-xs font-bold opacity-80 uppercase mb-1">Total del Día</p>
+      <h1 class="text-5xl font-black">{{ totalRevenue() | currency:'ARS':'symbol':'1.2-2' }}</h1>
+    </div>
+
+    <!-- Date Navigation -->
+    <div class="flex justify-between items-center bg-white/10 rounded-2xl p-2 px-4 shadow-inner">
+      <ion-button fill="clear" size="small" (click)="prevDay()" class="text-white">
+        <ion-icon name="chevron-back-outline"></ion-icon>
+      </ion-button>
+      <div class="text-center">
+        <h2 class="text-sm font-black m-0 uppercase tracking-wider">
+          {{ currentDate() | date:'EEEE d, MMMM' }}
+        </h2>
+      </div>
+      <ion-button fill="clear" size="small" (click)="nextDay()" class="text-white">
+        <ion-icon name="chevron-forward-outline"></ion-icon>
+      </ion-button>
+    </div>
+  </div>
+</ion-header>
+
+<ion-content class="bg-slate-50">
+  <div class="p-4">
+    <!-- Section Breakdown -->
+    <div class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+      <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+        <ion-icon name="pie-chart-outline" style="color: #49bfa8;"></ion-icon>
+        Desglose por Servicio
+      </h3>
+
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+              A
+            </div>
+            <div>
+              <p class="font-bold m-0 text-slate-700 uppercase text-xs">Viaje de Ida</p>
+              <p class="text-xs text-slate-400 m-0">{{ sectionCounts().ida }} viajes</p>
+            </div>
+          </div>
+          <span class="font-black text-lg text-slate-800">{{ sectionTotals().ida | currency:'ARS':'symbol':'1.2-2'
+            }}</span>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+              B
+            </div>
+            <div>
+              <p class="font-bold m-0 text-slate-700 uppercase text-xs">Viaje de Vuelta</p>
+              <p class="text-xs text-slate-400 m-0">{{ sectionCounts().vuelta }} viajes</p>
+            </div>
+          </div>
+          <span class="font-black text-lg text-slate-800">{{ sectionTotals().vuelta | currency:'ARS':'symbol':'1.2-2'
+            }}</span>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+              C
+            </div>
+            <div>
+              <p class="font-bold m-0 text-slate-700 uppercase text-xs">Encomienda</p>
+              <p class="text-xs text-slate-400 m-0">{{ sectionCounts().encomienda }} viajes</p>
+            </div>
+          </div>
+          <span class="font-black text-lg text-slate-800">{{ sectionTotals().encomienda |
+            currency:'ARS':'symbol':'1.2-2' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm p-4 text-center">
+      <p class="text-xs text-slate-400 mb-2 uppercase font-bold">Resumen para</p>
+      <p class="font-black text-slate-800 text-xl">{{ currentDate() | date:'EEEE d, MMMM' }}</p>
+    </div>
+
+    <div class="mt-8 flex justify-center">
+      <button (click)="shareSummary()"
+        class="flex items-center gap-3 px-8 py-4 bg-emerald-500 text-white rounded-3xl font-black shadow-xl transform active:scale-95 transition-all">
+        <ion-icon name="logo-whatsapp" class="text-2xl"></ion-icon>
+        COMPARTIR RESUMEN
+      </button>
+    </div>
+  </div>
+</ion-content>
