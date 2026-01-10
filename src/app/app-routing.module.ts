@@ -12,8 +12,8 @@ const routes: Routes = [
     pathMatch: 'full'
   },
   {
-    path: 'revenue',
-    loadChildren: () => import('./revenue/revenue.module').then( m => m.RevenuePageModule)
+    path: 'history',
+    loadChildren: () => import('./history/history.module').then( m => m.HistoryPageModule)
   },
   {
     path: 'about',

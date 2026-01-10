@@ -1,0 +1,121 @@
+<ion-header class="ion-no-border">
+  <div style="background-color: #1b3a61;" class="p-4 pt-8 text-white">
+    <div class="flex justify-between items-center mb-4">
+      <ion-buttons slot="start">
+        <ion-menu-button color="light"></ion-menu-button>
+      </ion-buttons>
+      <div class="text-center flex-1">
+        <h2 class="text-lg font-bold m-0 uppercase tracking-widest">HISTORIAL</h2>
+      </div>
+      <div class="w-12"></div>
+    </div>
+
+    <div class="flex justify-between items-center bg-white/10 rounded-2xl p-2 px-4 shadow-inner">
+      <ion-button fill="clear" size="small" (click)="prevMonth()" class="text-white">
+        <ion-icon name="chevron-back-outline"></ion-icon>
+      </ion-button>
+      <div class="text-center">
+        <h2 class="text-sm font-black m-0 uppercase tracking-wider">
+          {{ currentMonthLabel() }}
+        </h2>
+      </div>
+      <ion-button fill="clear" size="small" (click)="nextMonth()" class="text-white">
+        <ion-icon name="chevron-forward-outline"></ion-icon>
+      </ion-button>
+    </div>
+  </div>
+</ion-header>
+
+<ion-content class="bg-slate-50">
+  <div class="p-4">
+    <div class="bg-white rounded-2xl shadow-sm p-3">
+      <div class="grid grid-cols-7 gap-1 mb-2 text-center text-[10px] font-black uppercase text-slate-400">
+        <div>Lun</div>
+        <div>Mar</div>
+        <div>Mié</div>
+        <div>Jue</div>
+        <div>Vie</div>
+        <div>Sáb</div>
+        <div>Dom</div>
+      </div>
+
+      <div class="grid grid-cols-7 gap-2">
+        <button *ngFor="let d of daysGrid()" (click)="selectDay(d.date)"
+          [class.opacity-40]="!d.isCurrentMonth"
+          [class.ring-2]="d.date === selectedDate()"
+          class="relative h-14 rounded-xl bg-slate-50 flex flex-col items-center justify-center text-slate-800 font-black">
+          <span class="text-sm">{{ d.day }}</span>
+          <span *ngIf="d.count > 0"
+            class="absolute bottom-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-500 text-white text-[10px] font-black flex items-center justify-center">
+            {{ d.count }}
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-4 bg-white rounded-2xl shadow-sm p-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-xs text-slate-400 font-bold uppercase m-0">{{ selectedDate() | date:'EEEE d, MMMM' }}</p>
+          <h3 class="font-black text-slate-800 text-2xl m-0 mt-1">{{ selectedDayTotal() }} viajes</h3>
+        </div>
+        <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+          <ion-icon name="list-outline" style="color: #49bfa8;" class="text-2xl"></ion-icon>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4 space-y-4">
+      <div class="bg-white rounded-2xl shadow-sm p-4">
+        <h3 class="font-black text-slate-800 uppercase tracking-wider m-0 mb-3">VIAJES DE IDA</h3>
+        <div *ngIf="idaTrips().length === 0" class="text-slate-400 text-sm">Sin viajes de ida</div>
+        <div class="space-y-2">
+          <div *ngFor="let t of idaTrips()" class="rounded-xl bg-slate-50 p-3 flex items-center justify-between">
+            <div>
+              <div class="font-bold text-slate-800">{{ (t.passenger || t.description) }}</div>
+              <div class="text-xs text-slate-500">
+                {{ t.destination ? ('a ' + t.destination) : '' }}
+                <span *ngIf="t.time"> • 🕐 {{ t.time }}</span>
+              </div>
+            </div>
+            <div class="font-black text-emerald-600">{{ t.amount | currency:'ARS':'symbol':'1.2-2' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm p-4">
+        <h3 class="font-black text-slate-800 uppercase tracking-wider m-0 mb-3">VIAJES DE ENCOMIENDA</h3>
+        <div *ngIf="encomiendaTrips().length === 0" class="text-slate-400 text-sm">Sin encomiendas</div>
+        <div class="space-y-2">
+          <div *ngFor="let t of encomiendaTrips()" class="rounded-xl bg-slate-50 p-3 flex items-center justify-between">
+            <div>
+              <div class="font-bold text-slate-800">{{ (t.passenger || t.description) }}</div>
+              <div class="text-xs text-slate-500">
+                {{ t.destination ? ('a ' + t.destination) : '' }}
+                <span *ngIf="t.time"> • 🕐 {{ t.time }}</span>
+              </div>
+            </div>
+            <div class="font-black text-emerald-600">{{ t.amount | currency:'ARS':'symbol':'1.2-2' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm p-4">
+        <h3 class="font-black text-slate-800 uppercase tracking-wider m-0 mb-3">VIAJES DE VUELTA</h3>
+        <div *ngIf="vueltaTrips().length === 0" class="text-slate-400 text-sm">Sin viajes de vuelta</div>
+        <div class="space-y-2">
+          <div *ngFor="let t of vueltaTrips()" class="rounded-xl bg-slate-50 p-3 flex items-center justify-between">
+            <div>
+              <div class="font-bold text-slate-800">{{ (t.passenger || t.description) }}</div>
+              <div class="text-xs text-slate-500">
+                {{ t.destination ? ('a ' + t.destination) : '' }}
+                <span *ngIf="t.time"> • 🕐 {{ t.time }}</span>
+              </div>
+            </div>
+            <div class="font-black text-emerald-600">{{ t.amount | currency:'ARS':'symbol':'1.2-2' }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</ion-content>

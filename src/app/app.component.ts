@@ -1,4 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
+import { Platform } from '@ionic/angular';
+import { Router } from '@angular/router';
+import { Location } from '@angular/common';
+import { App } from '@capacitor/app';
 
 @Component({
   selector: 'app-root',
@@ -7,7 +11,24 @@ import { Component } from '@angular/core';
   standalone: false,
 })
 export class AppComponent {
-  constructor() { }
+  private platform = inject(Platform);
+  private router = inject(Router);
+  private location = inject(Location);
+
+  constructor() {
+    this.platform.ready().then(() => {
+      this.platform.backButton.subscribeWithPriority(10, () => {
+        const url = this.router.url;
+
+        if (url === '/' || url === '/home') {
+          App.exitApp();
+          return;
+        }
+
+        this.location.back();
+      });
+    });
+  }
 
   get greeting(): string {
     const hour = new Date().getHours();

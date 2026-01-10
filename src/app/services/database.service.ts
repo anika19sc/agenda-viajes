@@ -3,6 +3,15 @@ import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacitor-community/sqlite';
 import { Trip } from '../models/trip.model';
 
+export interface MonthlySummaryRow {
+    month: string;
+    label: string;
+    total: number;
+    ida: number;
+    vuelta: number;
+    encomienda: number;
+}
+
 @Injectable({
     providedIn: 'root'
 })
@@ -12,11 +21,14 @@ export class DatabaseService {
     private isWeb: boolean = Capacitor.getPlatform() === 'web';
 
     // Signals for state management
-    private _currentDate = signal<string>(new Date().toISOString().split('T')[0]);
+    private _currentDate = signal<string>(this.toLocalIsoDate(new Date()));
     public readonly currentDate = this._currentDate.asReadonly();
 
     private _trips = signal<Trip[]>([]);
     public readonly trips = this._trips.asReadonly();
+
+    private _monthlySummary = signal<MonthlySummaryRow[]>([]);
+    public readonly monthlySummary = this._monthlySummary.asReadonly();
 
     // Derived signals for totals
     public readonly totalRevenue = computed(() =>
@@ -40,6 +52,18 @@ export class DatabaseService {
     });
 
     constructor() { }
+
+    private toLocalIsoDate(d: Date): string {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+
+    private parseIsoAsLocalMidday(dateIso: string): Date {
+        // Evita problemas de UTC / DST: trabajamos al mediodía local
+        return new Date(`${dateIso}T12:00:00`);
+    }
 
     async initializeApp() {
         try {
@@ -66,6 +90,8 @@ export class DatabaseService {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           date TEXT NOT NULL,
           section TEXT NOT NULL,
+          passenger TEXT,
+          destination TEXT,
           description TEXT NOT NULL,
           amount REAL NOT NULL,
           time TEXT
@@ -78,6 +104,21 @@ export class DatabaseService {
             try {
                 await this.db.execute(`ALTER TABLE trips ADD COLUMN time TEXT;`);
                 console.log('✅ Columna time agregada a la base de datos');
+            } catch (e) {
+                // La columna ya existe, ignorar error
+            }
+
+            // Migración: Agregar columnas passenger/destination si no existen
+            try {
+                await this.db.execute(`ALTER TABLE trips ADD COLUMN passenger TEXT;`);
+                console.log('✅ Columna passenger agregada a la base de datos');
+            } catch (e) {
+                // La columna ya existe, ignorar error
+            }
+
+            try {
+                await this.db.execute(`ALTER TABLE trips ADD COLUMN destination TEXT;`);
+                console.log('✅ Columna destination agregada a la base de datos');
             } catch (e) {
                 // La columna ya existe, ignorar error
             }
@@ -96,11 +137,66 @@ export class DatabaseService {
         console.log(`[DB] loadTrips para ${date}: ${data.length} registros cargados.`);
     }
 
+    async loadMonthlySummary() {
+        const res = await this.db.query(`
+            SELECT
+              substr(date, 1, 7) as month,
+              COUNT(*) as total,
+              SUM(CASE WHEN section = 'ida' THEN 1 ELSE 0 END) as ida,
+              SUM(CASE WHEN section = 'vuelta' THEN 1 ELSE 0 END) as vuelta,
+              SUM(CASE WHEN section = 'encomienda' THEN 1 ELSE 0 END) as encomienda
+            FROM trips
+            GROUP BY substr(date, 1, 7)
+            ORDER BY month DESC
+        `);
+
+        const rows = (res.values || []) as any[];
+        const formatted: MonthlySummaryRow[] = rows.map(r => {
+            const month = String(r.month || '');
+            const label = month ? new Date(month + '-01T12:00:00').toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }) : '';
+            return {
+                month,
+                label,
+                total: Number(r.total || 0),
+                ida: Number(r.ida || 0),
+                vuelta: Number(r.vuelta || 0),
+                encomienda: Number(r.encomienda || 0),
+            };
+        });
+
+        this._monthlySummary.set(formatted);
+    }
+
+    async getTripsByDate(date: string): Promise<Trip[]> {
+        const res = await this.db.query('SELECT * FROM trips WHERE date = ? ORDER BY time IS NULL, time ASC, id DESC', [date]);
+        return (res.values as Trip[]) || [];
+    }
+
+    async getDayCountsForMonth(monthIso: string): Promise<Record<string, number>> {
+        const res = await this.db.query(`
+            SELECT
+              date as date,
+              COUNT(*) as total
+            FROM trips
+            WHERE substr(date, 1, 7) = ?
+            GROUP BY date
+        `, [monthIso]);
+
+        const rows = (res.values || []) as any[];
+        const map: Record<string, number> = {};
+        rows.forEach(r => {
+            if (r.date) {
+                map[String(r.date)] = Number(r.total || 0);
+            }
+        });
+        return map;
+    }
+
     async addTrip(trip: Omit<Trip, 'id'>) {
-        const { date, section, description, amount, time } = trip;
+        const { date, section, passenger, destination, description, amount, time } = trip;
         await this.db.run(
-            'INSERT INTO trips (date, section, description, amount, time) VALUES (?, ?, ?, ?, ?)',
-            [date, section, description, amount, time || null]
+            'INSERT INTO trips (date, section, passenger, destination, description, amount, time) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [date, section, passenger || null, destination || null, description, amount, time || null]
         );
         await this.loadTrips(date);
     }
@@ -116,14 +212,14 @@ export class DatabaseService {
     }
 
     async nextDay() {
-        const d = new Date(this._currentDate());
+        const d = this.parseIsoAsLocalMidday(this._currentDate());
         d.setDate(d.getDate() + 1);
-        await this.updateDate(d.toISOString().split('T')[0]);
+        await this.updateDate(this.toLocalIsoDate(d));
     }
 
     async prevDay() {
-        const d = new Date(this._currentDate());
+        const d = this.parseIsoAsLocalMidday(this._currentDate());
         d.setDate(d.getDate() - 1);
-        await this.updateDate(d.toISOString().split('T')[0]);
+        await this.updateDate(this.toLocalIsoDate(d));
     }
 }

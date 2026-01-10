@@ -1,66 +1,89 @@
 <ion-header class="ion-no-border">
-  <div style="background-color: #1b3a61;" class="p-4 pt-8 text-white">
-    <div class="flex justify-between items-center mb-4">
-      <ion-buttons slot="start">
-        <ion-menu-button color="light"></ion-menu-button>
-      </ion-buttons>
-      <div class="text-center flex-1">
-        <h2 class="text-lg font-bold m-0 uppercase tracking-widest">ACERCA DE</h2>
+  <div class="about-hero">
+    <div class="p-4 pt-8 text-white">
+      <div class="flex justify-between items-center mb-4">
+        <ion-buttons slot="start">
+          <ion-menu-button color="light"></ion-menu-button>
+        </ion-buttons>
+        <div class="text-center flex-1">
+          <h2 class="text-lg font-bold m-0 uppercase tracking-widest">ACERCA DE</h2>
+        </div>
+        <div class="w-12"></div>
       </div>
-      <div class="w-12"></div>
-    </div>
 
-    <!-- App Identity -->
-    <div class="flex flex-col items-center py-6">
-      <img src="assets/logo.jpg" alt="VozRuta Logo" class="w-24 h-24 rounded-full border-2 border-white shadow-xl mb-3">
-      <h1 class="text-2xl font-black m-0 tracking-tight">VozRuta</h1>
-      <p class="text-xs opacity-70 font-bold uppercase tracking-widest">Versión 1.0.0</p>
+      <div class="flex flex-col items-center pt-2 pb-6">
+        <div class="about-logo-wrap">
+          <img src="assets/about.png" alt="VozRuta" class="about-logo">
+        </div>
+        <h1 class="text-3xl font-black m-0 tracking-tight mt-4">VozRuta</h1>
+        <p class="text-xs opacity-80 font-bold uppercase tracking-widest mt-1">Versión 1.0.0</p>
+        <p class="text-sm opacity-90 font-semibold mt-4 text-center max-w-[20rem]">
+          Registrá viajes rápido y seguro con voz, incluso sin internet.
+        </p>
+      </div>
     </div>
+    <div class="about-wave"></div>
   </div>
 </ion-header>
 
-<ion-content class="bg-slate-50">
+<ion-content class="about-content">
   <div class="p-6">
-    <!-- Purpose Section -->
-    <div class="bg-white rounded-3xl shadow-sm p-6 mb-6">
-      <div class="flex items-center gap-3 mb-4">
-        <h3 class="font-bold text-slate-400 m-0 text-sm uppercase tracking-widest">Propósito</h3>
-      </div>
-      <p class="text-slate-800 text-lg leading-relaxed m-0 font-medium">
-        "VozRuta nace con el objetivo de facilitar la gestión de registros para conductores, ofreciendo una interfaz
+    <div class="about-card">
+      <p class="about-kicker">Propósito</p>
+      <h3 class="about-title">Pensada para el día a día del chofer</h3>
+      <p class="about-body">
+        VozRuta nace con el objetivo de facilitar la gestión de registros para conductores, ofreciendo una interfaz
         intuitiva y rápida. Optimizada para el uso de comandos de voz, permitiendo agendar viajes de forma ágil sin
-        interrumpir la operatividad en ruta."
+        interrumpir la operatividad en ruta.
       </p>
     </div>
 
-    <!-- Technical Info Section -->
-    <div class="bg-white rounded-3xl shadow-sm p-6">
-      <div class="flex items-center gap-3 mb-6">
-        <h3 class="font-bold text-slate-400 m-0 text-sm uppercase tracking-widest">Soporte Técnico</h3>
+    <div class="about-card mt-6">
+      <p class="about-kicker">Soporte y contacto</p>
+      <h3 class="about-title">Estamos para ayudarte</h3>
+
+      <div class="about-list">
+        <div class="about-row">
+          <ion-icon name="person-outline" class="about-icon"></ion-icon>
+          <div class="about-row-text">
+            <p class="about-row-label">Desarrolladora</p>
+            <p class="about-row-value">Ana Cesia Santa Cruz</p>
+          </div>
+        </div>
+
+        <div class="about-row">
+          <ion-icon name="location-outline" class="about-icon"></ion-icon>
+          <div class="about-row-text">
+            <p class="about-row-label">Ubicación</p>
+            <p class="about-row-value">Resistencia, Chaco</p>
+          </div>
+        </div>
+
+        <div class="about-row">
+          <ion-icon name="call-outline" class="about-icon"></ion-icon>
+          <div class="about-row-text">
+            <p class="about-row-label">Teléfono / WhatsApp</p>
+            <p class="about-row-value">3624934986</p>
+          </div>
+        </div>
+
+        <div class="about-row">
+          <ion-icon name="mail-outline" class="about-icon"></ion-icon>
+          <div class="about-row-text">
+            <p class="about-row-label">Email</p>
+            <p class="about-row-value">anacesiasantacruz&#64;gmail.com</p>
+          </div>
+        </div>
       </div>
 
-      <div class="space-y-4">
-        <div class="flex flex-col gap-1">
-          <p class="text-slate-500 m-0">Desarrolladora: Ana Cesia Santa Cruz</p>
-        </div>
-
-        <div class="flex flex-col gap-1">
-          <p class="text-slate-500 m-0">Ubicación: Resistencia, Chaco.</p>
-        </div>
-
-        <div class="flex flex-col gap-1">
-          <p class="text-slate-500 m-0">Contacto: 3624934986</p>
-        </div>
-
-        <div class="flex flex-col gap-1">
-          <p class="text-slate-500 m-0">Email: anacesiasantacruz&#64;gmail.com</p>
-        </div>
+      <div class="about-actions">
+        <ion-button expand="block" class="about-primary" href="tel:3624934986">Llamar</ion-button>
+        <ion-button expand="block" fill="outline" class="about-secondary" href="mailto:anacesiasantacruz@gmail.com">Enviar email</ion-button>
       </div>
     </div>
 
-    <!-- Footer Copyright -->
-    <div class="mt-12 text-center">
-      <p class="text-slate-300 text-[10px] uppercase tracking-[0.2em]">
+    <div class="mt-10 text-center">
+      <p class="text-white/60 text-[10px] uppercase tracking-[0.2em]">
         © 2026 • Todos los derechos reservados
       </p>
     </div>

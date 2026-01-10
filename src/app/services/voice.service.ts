@@ -260,11 +260,140 @@ export class VoiceService {
         return null;
     }
 
-    parseSentence(sentence: string): { description: string, amount: number, time: string | null } {
+    private toIsoDate(date: Date): string {
+        return date.toISOString().split('T')[0];
+    }
+
+    /**
+     * Parser de fecha (simple): soporta expresiones comunes.
+     * - "hoy", "mañana", "pasado mañana"
+     * - "dentro de 3 días" / "en 3 días"
+     */
+    public parseDate(text: string, baseDateIso?: string): string | null {
+        if (!text) return null;
+
+        const lower = text.toLowerCase();
+        const base = baseDateIso ? new Date(baseDateIso + 'T12:00:00') : new Date();
+
+        if (lower.includes('hoy')) {
+            return this.toIsoDate(base);
+        }
+
+        if (lower.includes('pasado mañana') || lower.includes('pasadomañana')) {
+            const d = new Date(base);
+            d.setDate(d.getDate() + 2);
+            return this.toIsoDate(d);
+        }
+
+        if (lower.includes('mañana')) {
+            const d = new Date(base);
+            d.setDate(d.getDate() + 1);
+            return this.toIsoDate(d);
+        }
+
+        const relMatch = lower.match(/(?:dentro\s+de|en)\s+(\d{1,3})\s*(?:d[ií]as|dia)/i);
+        if (relMatch) {
+            const n = parseInt(relMatch[1], 10);
+            if (!isNaN(n)) {
+                const d = new Date(base);
+                d.setDate(d.getDate() + n);
+                return this.toIsoDate(d);
+            }
+        }
+
+        return null;
+    }
+
+    private cleanForPassengerDestination(text: string, amountStr: string, time: string | null): string {
+        let cleaned = text;
+
+        // Remover frases de tiempo tipo "a las 21:00" / "a la 1" (evita que quede "a las" en descripción)
+        cleaned = cleaned.replace(/\ba\s+las?\s+\d{1,2}(?::\d{2})?\b/gi, ' ');
+
+        // Remover patrones de tiempo COMPLETOS
+        cleaned = cleaned
+            .replace(/\d{1,2}:\d{2}/g, '')
+            .replace(/\d{1,2}\s+(?:horas?|hs)\b/gi, '')
+            .replace(/\d{1,2}\s+(?:de\s+la\s+)?(?:mañana|tarde|noche)\b/gi, '')
+            .replace(/\d{1,2}\s+y\s+media\b/gi, '');
+
+        // Remover fecha relativa
+        cleaned = cleaned
+            .replace(/\b(hoy|mañana|pasado\s+mañana|pasadomañana)\b/gi, ' ')
+            .replace(/(?:dentro\s+de|en)\s+\d{1,3}\s*(?:d[ií]as|dia)\b/gi, ' ');
+
+        // Remover el monto detectado
+        if (amountStr) {
+            cleaned = cleaned.replace(new RegExp(amountStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), ' ');
+        }
+
+        // Remover palabras de dinero que suelen quedar
+        cleaned = cleaned.replace(/\b(pesos?|importe|monto|total|ars)\b/gi, ' ');
+
+        // Remover símbolos de moneda sueltos (ej: "$" cuando el número ya fue removido)
+        cleaned = cleaned.replace(/\$/g, ' ');
+
+        // Compactar espacios
+        cleaned = cleaned.replace(/\s+/g, ' ').trim();
+        return cleaned;
+    }
+
+    private sanitizeNamePart(part: string): string {
+        return (part || '')
+            .replace(/\$/g, ' ')
+            .replace(/\s+/g, ' ')
+            .replace(/[\s.,;:¡!¿?\-]+$/g, '')
+            .trim();
+    }
+
+    private toTitleCase(text: string): string {
+        const s = (text || '').replace(/\s+/g, ' ').trim();
+        if (!s) return s;
+        return s
+            .toLowerCase()
+            .split(' ')
+            .map(w => (w ? w.charAt(0).toUpperCase() + w.slice(1) : ''))
+            .join(' ');
+    }
+
+    private parsePassengerDestination(text: string): { passenger: string | null; destination: string | null } {
+        if (!text) return { passenger: null, destination: null };
+
+        const lower = text.toLowerCase();
+
+        // Preferir "viaje a" (más específico) y caer a " a "
+        const idxViajeA = lower.lastIndexOf('viaje a ');
+        if (idxViajeA >= 0) {
+            const passenger = this.sanitizeNamePart(text.substring(0, idxViajeA));
+            const destination = this.sanitizeNamePart(text.substring(idxViajeA + 'viaje a '.length));
+            return {
+                passenger: passenger ? passenger : null,
+                destination: destination ? destination : null
+            };
+        }
+
+        const idxA = lower.lastIndexOf(' a ');
+        if (idxA >= 0) {
+            const passenger = this.sanitizeNamePart(text.substring(0, idxA));
+            const destination = this.sanitizeNamePart(text.substring(idxA + 3));
+            return {
+                passenger: passenger ? passenger : null,
+                destination: destination ? destination : null
+            };
+        }
+
+        const passenger = this.sanitizeNamePart(text);
+        return { passenger: passenger || null, destination: null };
+    }
+
+    parseSentence(sentence: string, baseDateIso?: string): { passenger: string | null, destination: string | null, description: string, amount: number, time: string | null, date: string | null } {
         console.log('Original sentence to parse:', sentence);
 
         // 1. Extraer tiempo PRIMERO
         const time = this.parseTime(sentence);
+
+        // 1.1 Extraer fecha (si viene en la frase)
+        const date = this.parseDate(sentence, baseDateIso);
 
         // 2. Buscar el monto con PRIORIDAD en símbolos de moneda y EXCLUYENDO patrones de tiempo
         let amountMatch = null;
@@ -309,38 +438,30 @@ export class VoiceService {
             amount = this.parseAmount(amountStr);
         }
 
-        // 3. Extraer descripción (limpiando el bloque del monto, tiempo y palabras clave)
-        let description = sentence;
+        // 3. Extraer pasajero/destino y descripción final
+        const cleaned = this.cleanForPassengerDestination(sentence, amountStr, time);
+        let { passenger, destination } = this.parsePassengerDestination(cleaned);
+        if (passenger) passenger = this.toTitleCase(passenger);
+        if (destination) destination = this.toTitleCase(destination);
 
-        // Remover patrones de tiempo COMPLETOS (antes de remover el monto)
-        description = description
-            .replace(/\d{1,2}:\d{2}/g, '') // HH:MM
-            .replace(/\d{1,2}\s+(?:horas?|hs)\b/gi, '') // X horas (con espacio y word boundary)
-            .replace(/\d{1,2}\s+(?:de\s+la\s+)?(?:mañana|tarde|noche)\b/gi, '') // X de la tarde
-            .replace(/\d{1,2}\s+y\s+media\b/gi, ''); // X y media
-
-        // Remover el monto y sus variantes
-        if (amountStr) {
-            // Remover el monto exacto
-            description = description.replace(new RegExp(amountStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '');
+        let description = cleaned;
+        if (passenger && destination) {
+            description = `${passenger} a ${destination}`;
+        } else if (passenger && !destination) {
+            description = passenger;
         }
 
-        // Remover cualquier número suelto que quede (probablemente sea parte del monto)
-        description = description.replace(/\d+(?:[.,]\d+)*/g, '');
-
-        // Limpieza profunda de "basura" linguística repetida
         description = description
-            .replace(/pesos|peso|p\b|\$|importe|monto|total|\+| de | para | x | por /gi, ' ')
             .replace(/\s+/g, ' ')
             .trim();
 
-        if (!description || description === '') {
+        if (!description) {
             description = 'Sin descripción';
         }
 
-        description = description.charAt(0).toUpperCase() + description.slice(1);
-        console.log('Parsed result:', { description, amount, time });
+        description = this.toTitleCase(description);
+        console.log('Parsed result:', { passenger, destination, description, amount, time, date });
 
-        return { description, amount, time };
+        return { passenger, destination, description, amount, time, date };
     }
 }

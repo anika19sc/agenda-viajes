@@ -3,6 +3,7 @@ import { DatabaseService } from '../services/database.service';
 import { VoiceService } from '../services/voice.service';
 import { ShareService } from '../services/share.service';
 import { HapticsService } from '../services/haptics.service';
+import { NotificationService } from '../services/notification.service';
 import { Trip } from '../models/trip.model';
 import { AlertController } from '@ionic/angular';
 
@@ -18,6 +19,7 @@ export class HomePage {
   private share = inject(ShareService);
   private alertCtrl = inject(AlertController);
   private haptics = inject(HapticsService);
+  private notifications = inject(NotificationService);
   private cdr = inject(ChangeDetectorRef);
 
   public selectedSection = signal<'ida' | 'vuelta' | 'encomienda'>('ida');
@@ -60,17 +62,29 @@ export class HomePage {
       if (sentence) {
         console.log("Procesando entrada de voz:", sentence);
 
-        const parsed = this.voice.parseSentence(sentence);
+        const parsed = this.voice.parseSentence(sentence, this.currentDate());
+        const targetDate = parsed.date || this.currentDate();
 
         // CICLO DE GUARDADO Y CARGA ESTRICTA
         console.log("Iniciando INSERT en DB...");
         await this.db.addTrip({
-          date: this.currentDate(),
+          date: targetDate,
           section: this.selectedSection(),
+          passenger: parsed.passenger || undefined,
+          destination: parsed.destination || undefined,
           description: parsed.description,
           amount: parsed.amount,
           time: parsed.time || undefined
         });
+
+        if (parsed.time && targetDate) {
+          await this.notifications.scheduleOneHourBefore({
+            date: targetDate,
+            time: parsed.time,
+            description: parsed.description,
+            section: this.selectedSection(),
+          });
+        }
 
         console.log("✅ Registro INSERT exitoso. Iniciando recarga SELECT...");
         // Aseguramos la recarga explícita para que el signal se actualice
@@ -89,6 +103,8 @@ export class HomePage {
     const alert = await this.alertCtrl.create({
       header: 'Carga Manual',
       inputs: [
+        { name: 'passenger', type: 'text', placeholder: 'Pasajero (opcional)' },
+        { name: 'destination', type: 'text', placeholder: 'Destino (opcional)' },
         { name: 'description', type: 'text', placeholder: 'Descripción (Nombre/Lugar)' },
         { name: 'amount', type: 'number', placeholder: 'Importe ($)' },
         { name: 'time', type: 'time', placeholder: 'Hora (opcional)' }
@@ -102,13 +118,27 @@ export class HomePage {
               // Sanitización estricta para carga manual también
               const cleanAmount = this.voice.parseAmount(data.amount);
 
+              const passenger = (data.passenger || '').trim();
+              const destination = (data.destination || '').trim();
+
               await this.db.addTrip({
                 date: this.currentDate(),
                 section: this.selectedSection(),
+                passenger: passenger ? passenger : undefined,
+                destination: destination ? destination : undefined,
                 description: data.description,
                 amount: cleanAmount,
                 time: data.time || undefined
               });
+
+              if (data.time) {
+                await this.notifications.scheduleOneHourBefore({
+                  date: this.currentDate(),
+                  time: data.time,
+                  description: data.description,
+                  section: this.selectedSection(),
+                });
+              }
               this.haptics.success();
 
               // Recarga explícita y forzado de UI
@@ -131,6 +161,18 @@ export class HomePage {
   }
 
   async shareSummary() {
-    await this.share.shareDailySummary(this.currentDate(), this.trips(), this.totalRevenue());
+    const alert = await this.alertCtrl.create({
+      header: 'Exportar / Compartir',
+      buttons: [
+        {
+          text: 'Resumen',
+          handler: async () => {
+            await this.share.shareDailySummary(this.currentDate(), this.trips(), this.totalRevenue());
+          }
+        },
+        { text: 'Cancelar', role: 'cancel' }
+      ]
+    });
+    await alert.present();
   }
 }

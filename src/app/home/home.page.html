@@ -17,7 +17,7 @@
       </ion-button>
       <div class="text-center">
         <h2 class="text-sm font-black m-0 uppercase tracking-wider">
-          {{ currentDate() | date:'EEEE d, MMMM' }}
+          {{ (currentDate() + 'T12:00:00') | date:'EEEE d, MMMM' }}
         </h2>
       </div>
       <ion-button fill="clear" size="small" (click)='nextDay()' class="text-white">
@@ -50,7 +50,7 @@
   </div>
 
   <!-- Trip List -->
-  <div class="p-4 mb-40">
+  <div class="p-4 mb-24">
     <div *ngIf="trips().length === 0" class="flex flex-col items-center justify-center py-20 text-slate-400">
       <ion-icon name="calendar-outline" class="text-6xl mb-4"></ion-icon>
       <p class="font-medium">No hay registros hoy</p>
@@ -88,6 +88,8 @@
       </ng-container>
     </ion-list>
   </div>
+
+  <div class="p-4 pb-56"></div>
 </ion-content>
 
 <!-- Floating Actions -->
