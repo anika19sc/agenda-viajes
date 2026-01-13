@@ -41,7 +41,9 @@ export class HistoryPage {
   }
 
   private monthLabel(monthIso: string): string {
-    return new Date(monthIso + '-01T12:00:00').toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+    const [year, month] = monthIso.split('-').map(Number);
+    const d = new Date(year, month - 1, 1, 12, 0, 0);
+    return d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
   }
 
   public currentMonthLabel(): string {
@@ -49,14 +51,16 @@ export class HistoryPage {
   }
 
   async prevMonth() {
-    const d = new Date(this.currentMonth() + '-01T12:00:00');
+    const [year, month] = this.currentMonth().split('-').map(Number);
+    const d = new Date(year, month - 1, 1, 12, 0, 0);
     d.setMonth(d.getMonth() - 1);
     this.currentMonth.set(this.toLocalMonthIso(d));
     await this.refreshMonth();
   }
 
   async nextMonth() {
-    const d = new Date(this.currentMonth() + '-01T12:00:00');
+    const [year, month] = this.currentMonth().split('-').map(Number);
+    const d = new Date(year, month - 1, 1, 12, 0, 0);
     d.setMonth(d.getMonth() + 1);
     this.currentMonth.set(this.toLocalMonthIso(d));
     await this.refreshMonth();
@@ -67,7 +71,8 @@ export class HistoryPage {
     const counts = await this.db.getDayCountsForMonth(monthIso);
     this.dayCounts.set(counts);
 
-    const firstOfMonth = new Date(monthIso + '-01T12:00:00');
+    const [year, month] = monthIso.split('-').map(Number);
+    const firstOfMonth = new Date(year, month - 1, 1, 12, 0, 0);
     const start = new Date(firstOfMonth);
 
     const dayOfWeek = (start.getDay() + 6) % 7;

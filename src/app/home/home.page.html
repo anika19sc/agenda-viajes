@@ -1,11 +1,12 @@
 <ion-header class="ion-no-border">
-  <div style="background-color: #1b3a61;" class="p-4 pt-8 text-white">
-    <div class="flex justify-between items-center mb-4">
+  <div style="background-color: #1b3a61;" class="p-4 pt-safe text-white">
+    <div class="flex justify-between items-center mb-2">
       <ion-buttons slot="start">
         <ion-menu-button color="light"></ion-menu-button>
       </ion-buttons>
       <div class="text-center flex flex-col items-center flex-1">
-        <img src="assets/logo.jpg" alt="Logo" class="w-20 h-20 rounded-full border-2 border-white shadow-lg">
+        <img src="assets/logo.jpg" alt="Logo"
+          class="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 border-white shadow-lg">
       </div>
       <div class="w-12"></div> <!-- Spacer for symmetry -->
     </div>
@@ -51,9 +52,10 @@
 
   <!-- Trip List -->
   <div class="p-4 mb-24">
-    <div *ngIf="trips().length === 0" class="flex flex-col items-center justify-center py-20 text-slate-400">
-      <ion-icon name="calendar-outline" class="text-6xl mb-4"></ion-icon>
-      <p class="font-medium">No hay registros hoy</p>
+    <div *ngIf="trips().length === 0" class="flex flex-col items-center justify-center py-24 sm:py-32 text-slate-400">
+      <ion-icon name="calendar-outline" class="text-7xl sm:text-8xl mb-4 opacity-50"></ion-icon>
+      <p class="font-bold text-lg sm:text-xl">No hay registros hoy</p>
+      <p class="text-sm opacity-70 mt-1">Tocá el botón naranja para empezar</p>
     </div>
 
     <ion-list lines="none" class="bg-transparent">
@@ -93,10 +95,10 @@
 </ion-content>
 
 <!-- Floating Actions -->
-<div class="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white to-transparent">
-  <div class="flex gap-4 items-center">
+<div class="fixed bottom-0 left-0 right-0 p-6 bottom-bar-safe bg-gradient-to-t from-white via-white to-transparent">
+  <div class="flex gap-4 items-center max-w-lg mx-auto">
     <button (click)="manualEntry()" style="color: #1b3a61;"
-      class="w-16 h-16 rounded-full bg-white shadow-xl border-2 border-slate-100 flex items-center justify-center transform active:scale-90 transition-all">
+      class="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white shadow-xl border-2 border-slate-100 flex items-center justify-center transform active:scale-90 transition-all">
       <ion-icon name="create-outline" class="text-2xl"></ion-icon>
     </button>
 
@@ -107,17 +109,19 @@
       </div>
 
       <button (click)="recordVoice()" style="background-color: #f7941d;" [class.scale-105]="isRecording()"
-        class="w-full h-20 rounded-3xl text-white shadow-2xl flex items-center justify-center gap-3 transform active:scale-95 transition-all outline-none">
-        <div [style.background-color]="isRecording() ? '#fdba74' : '#e67e22'" class="rounded-full p-3 pulse-animation">
-          <ion-icon [name]="isRecording() ? 'stop' : 'mic'" class="text-3xl"></ion-icon>
+        class="w-full h-16 sm:h-20 rounded-3xl text-white shadow-2xl flex items-center justify-center gap-3 transform active:scale-95 transition-all outline-none">
+        <div [style.background-color]="isRecording() ? '#fdba74' : '#e67e22'"
+          class="rounded-full p-2 sm:p-3 pulse-animation">
+          <ion-icon [name]="isRecording() ? 'stop' : 'mic'" class="text-2xl sm:text-3xl"></ion-icon>
         </div>
-        <span class="text-xl font-black uppercase tracking-widest text-white">{{ isRecording() ? 'DETENER' : 'GRABAR'
+        <span class="text-lg sm:text-xl font-black uppercase tracking-widest text-white">{{ isRecording() ? 'DETENER' :
+          'GRABAR'
           }}</span>
       </button>
     </div>
 
     <button (click)="shareSummary()"
-      class="w-16 h-16 rounded-full bg-emerald-500 text-white shadow-xl flex items-center justify-center transform active:scale-90 transition-all">
+      class="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-emerald-500 text-white shadow-xl flex items-center justify-center transform active:scale-90 transition-all">
       <ion-icon name="logo-whatsapp" class="text-2xl"></ion-icon>
     </button>
   </div>

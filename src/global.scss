@@ -18,6 +18,13 @@
 @import "@ionic/angular/css/text-transformation.css";
 @import "@ionic/angular/css/flex-utils.css";
 
+:root {
+    --safe-area-top: env(safe-area-inset-top);
+    --safe-area-bottom: env(safe-area-inset-bottom);
+    --safe-area-left: env(safe-area-inset-left);
+    --safe-area-right: env(safe-area-inset-right);
+}
+
 /* Custom Styles */
 .pulse-animation {
     animation: pulse 2s infinite;
@@ -44,4 +51,40 @@ ion-item {
 
 ion-content {
     --background: #f8fafc;
+}
+
+/* Force Light Menu Background and Dark Text */
+ion-menu ion-content {
+    --background: #ffffff;
+    color: #1b3a61 !important;
+}
+
+ion-menu ion-list {
+    background: #ffffff !important;
+}
+
+ion-menu ion-item {
+    --color: #1b3a61 !important;
+    --background: #ffffff !important;
+}
+
+/* Fluid spacing utilities with Base Fallbacks */
+.p-safe {
+    padding-top: calc(var(--safe-area-top) + 1rem);
+    padding-bottom: calc(var(--safe-area-bottom) + 1rem);
+    padding-left: var(--safe-area-left);
+    padding-right: var(--safe-area-right);
+}
+
+.pt-safe {
+    padding-top: var(--safe-area-top);
+}
+
+.pb-safe {
+    padding-bottom: var(--safe-area-bottom);
+}
+
+/* Ensure buttons are not "too low" */
+.bottom-bar-safe {
+    padding-bottom: calc(var(--safe-area-bottom) + 1.5rem);
 }

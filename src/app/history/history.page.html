@@ -1,5 +1,5 @@
 <ion-header class="ion-no-border">
-  <div style="background-color: #1b3a61;" class="p-4 pt-8 text-white">
+  <div style="background-color: #1b3a61;" class="p-4 pt-safe text-white">
     <div class="flex justify-between items-center mb-4">
       <ion-buttons slot="start">
         <ion-menu-button color="light"></ion-menu-button>
@@ -40,8 +40,7 @@
       </div>
 
       <div class="grid grid-cols-7 gap-2">
-        <button *ngFor="let d of daysGrid()" (click)="selectDay(d.date)"
-          [class.opacity-40]="!d.isCurrentMonth"
+        <button *ngFor="let d of daysGrid()" (click)="selectDay(d.date)" [class.opacity-40]="!d.isCurrentMonth"
           [class.ring-2]="d.date === selectedDate()"
           class="relative h-14 rounded-xl bg-slate-50 flex flex-col items-center justify-center text-slate-800 font-black">
           <span class="text-sm">{{ d.day }}</span>
