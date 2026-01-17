@@ -28,25 +28,33 @@
 
 <ion-content class="bg-slate-50">
   <div class="p-4">
-    <div class="bg-white rounded-2xl shadow-sm p-3">
-      <div class="grid grid-cols-7 gap-1 mb-2 text-center text-[10px] font-black uppercase text-slate-400">
-        <div>Lun</div>
-        <div>Mar</div>
-        <div>Mié</div>
-        <div>Jue</div>
-        <div>Vie</div>
-        <div>Sáb</div>
-        <div>Dom</div>
+    <div class="bg-white rounded-2xl shadow-sm p-4">
+      <!-- Days Header -->
+      <div class="grid grid-cols-7 gap-1 mb-2">
+        <div class="text-center text-[10px] font-black uppercase text-slate-400 py-1">Lun</div>
+        <div class="text-center text-[10px] font-black uppercase text-slate-400 py-1">Mar</div>
+        <div class="text-center text-[10px] font-black uppercase text-slate-400 py-1">Mié</div>
+        <div class="text-center text-[10px] font-black uppercase text-slate-400 py-1">Jue</div>
+        <div class="text-center text-[10px] font-black uppercase text-slate-400 py-1">Vie</div>
+        <div class="text-center text-[10px] font-black uppercase text-slate-400 py-1">Sáb</div>
+        <div class="text-center text-[10px] font-black uppercase text-slate-400 py-1">Dom</div>
       </div>
 
-      <div class="grid grid-cols-7 gap-2">
-        <button *ngFor="let d of daysGrid()" (click)="selectDay(d.date)" [class.opacity-40]="!d.isCurrentMonth"
-          [class.ring-2]="d.date === selectedDate()"
-          class="relative h-14 rounded-xl bg-slate-50 flex flex-col items-center justify-center text-slate-800 font-black">
-          <span class="text-sm">{{ d.day }}</span>
+      <!-- Days Grid -->
+      <div class="grid grid-cols-7 gap-1">
+        <button *ngFor="let d of daysGrid()" (click)="selectDay(d.date)"
+          class="relative w-full aspect-square rounded-full flex flex-col items-center justify-center font-bold text-sm transition-all"
+          [class.text-slate-900]="d.isCurrentMonth" [class.text-slate-300]="!d.isCurrentMonth"
+          [class.bg-slate-100]="!d.isCurrentMonth && d.date !== selectedDate()"
+          [ngClass]="{'bg-[#1b3a61] text-white shadow-lg scale-105': d.date === selectedDate(), 'hover:bg-slate-50': d.date !== selectedDate() && d.isCurrentMonth}">
+          
+          <span>{{ d.day }}</span>
+          
+          <!-- Indicator Dot -->
           <span *ngIf="d.count > 0"
-            class="absolute bottom-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-500 text-white text-[10px] font-black flex items-center justify-center">
-            {{ d.count }}
+            [class.bg-emerald-400]="d.date === selectedDate()"
+            [class.bg-emerald-500]="d.date !== selectedDate()"
+            class="absolute bottom-1 w-1.5 h-1.5 rounded-full">
           </span>
         </button>
       </div>

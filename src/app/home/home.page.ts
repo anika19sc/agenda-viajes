@@ -5,7 +5,7 @@ import { ShareService } from '../services/share.service';
 import { HapticsService } from '../services/haptics.service';
 import { NotificationService } from '../services/notification.service';
 import { Trip } from '../models/trip.model';
-import { AlertController } from '@ionic/angular';
+import { AlertController, ToastController } from '@ionic/angular';
 
 @Component({
   selector: 'app-home',
@@ -18,6 +18,7 @@ export class HomePage {
   private voice = inject(VoiceService);
   private share = inject(ShareService);
   private alertCtrl = inject(AlertController);
+  private toastCtrl = inject(ToastController);
   private haptics = inject(HapticsService);
   private notifications = inject(NotificationService);
   private cdr = inject(ChangeDetectorRef);
@@ -57,10 +58,28 @@ export class HomePage {
     }
 
     try {
+      // DEBUG: Toast de inicio
+      const toastStart = await this.toastCtrl.create({
+        message: '🎤 Escuchando...',
+        duration: 1000,
+        position: 'top',
+        color: 'warning'
+      });
+      await toastStart.present();
+
       const sentence = await this.voice.startListening();
 
       if (sentence) {
         console.log("Procesando entrada de voz:", sentence);
+
+        // DEBUG: Toast con lo que escuchó
+        const toastHeard = await this.toastCtrl.create({
+          message: `👂 Escuché: "${sentence}"`,
+          duration: 2000,
+          position: 'top',
+          color: 'dark'
+        });
+        await toastHeard.present();
 
         const parsed = this.voice.parseSentence(sentence, this.currentDate());
         const targetDate = parsed.date || this.currentDate();
@@ -93,9 +112,33 @@ export class HomePage {
         this.haptics.success();
         this.cdr.detectChanges();
         console.log("🚀 SELECT completado y UI refrescada.");
+
+        // DEBUG: Toast de éxito final
+        const toastSuccess = await this.toastCtrl.create({
+          message: '✅ Guardado correctamente en Base de Datos',
+          duration: 2000,
+          position: 'top',
+          color: 'success'
+        });
+        await toastSuccess.present();
+      } else {
+        // DEBUG: Toast si no escuchó nada
+        const toastEmpty = await this.toastCtrl.create({
+          message: '❌ No escuché nada. Intenta de nuevo.',
+          duration: 2000,
+          position: 'top',
+          color: 'medium'
+        });
+        await toastEmpty.present();
       }
     } catch (err) {
       console.error('❌ Error en el flujo de voz/DB:', err);
+      const alert = await this.alertCtrl.create({
+        header: 'Error Crítico',
+        message: 'Falló al guardar: ' + JSON.stringify(err),
+        buttons: ['OK']
+      });
+      await alert.present();
     }
   }
 
@@ -115,35 +158,44 @@ export class HomePage {
           text: 'Guardar',
           handler: async (data) => {
             if (data.description && data.amount) {
-              // Sanitización estricta para carga manual también
-              const cleanAmount = this.voice.parseAmount(data.amount);
+              try {
+                // Sanitización estricta para carga manual también
+                const cleanAmount = this.voice.parseAmount(data.amount);
 
-              const passenger = (data.passenger || '').trim();
-              const destination = (data.destination || '').trim();
+                const passenger = (data.passenger || '').trim();
+                const destination = (data.destination || '').trim();
 
-              await this.db.addTrip({
-                date: this.currentDate(),
-                section: this.selectedSection(),
-                passenger: passenger ? passenger : undefined,
-                destination: destination ? destination : undefined,
-                description: data.description,
-                amount: cleanAmount,
-                time: data.time || undefined
-              });
-
-              if (data.time) {
-                await this.notifications.scheduleOneHourBefore({
+                await this.db.addTrip({
                   date: this.currentDate(),
-                  time: data.time,
-                  description: data.description,
                   section: this.selectedSection(),
+                  passenger: passenger ? passenger : undefined,
+                  destination: destination ? destination : undefined,
+                  description: data.description,
+                  amount: cleanAmount,
+                  time: data.time || undefined
                 });
-              }
-              this.haptics.success();
 
-              // Recarga explícita y forzado de UI
-              await this.db.loadTrips(this.currentDate());
-              this.cdr.detectChanges();
+                if (data.time) {
+                  await this.notifications.scheduleOneHourBefore({
+                    date: this.currentDate(),
+                    time: data.time,
+                    description: data.description,
+                    section: this.selectedSection(),
+                  });
+                }
+                this.haptics.success();
+
+                // Recarga explícita y forzado de UI
+                await this.db.loadTrips(this.currentDate());
+                this.cdr.detectChanges();
+              } catch (e) {
+                const errAlert = await this.alertCtrl.create({
+                  header: 'Error',
+                  message: 'Falló al guardar: ' + JSON.stringify(e),
+                  buttons: ['OK']
+                });
+                await errAlert.present();
+              }
             }
           }
         }

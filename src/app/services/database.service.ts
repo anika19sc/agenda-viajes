@@ -66,7 +66,13 @@ export class DatabaseService {
     }
 
     async initializeApp() {
+        if (this.db) {
+            console.log('⚠️ Database already initialized');
+            return;
+        }
+
         try {
+            console.log('🔄 Initializing Database...');
             if (this.isWeb) {
                 // Initialize jeep-sqlite for web
                 const jeepSqlite = document.createElement('jeep-sqlite');
@@ -84,6 +90,7 @@ export class DatabaseService {
             );
 
             await this.db.open();
+            console.log('✅ Database connection opened');
 
             const schema = `
         CREATE TABLE IF NOT EXISTS trips (
@@ -103,34 +110,35 @@ export class DatabaseService {
             // Migración: Agregar columna time si no existe
             try {
                 await this.db.execute(`ALTER TABLE trips ADD COLUMN time TEXT;`);
-                console.log('✅ Columna time agregada a la base de datos');
-            } catch (e) {
-                // La columna ya existe, ignorar error
-            }
+            } catch (e) { }
 
             // Migración: Agregar columnas passenger/destination si no existen
             try {
                 await this.db.execute(`ALTER TABLE trips ADD COLUMN passenger TEXT;`);
-                console.log('✅ Columna passenger agregada a la base de datos');
-            } catch (e) {
-                // La columna ya existe, ignorar error
-            }
+            } catch (e) { }
 
             try {
                 await this.db.execute(`ALTER TABLE trips ADD COLUMN destination TEXT;`);
-                console.log('✅ Columna destination agregada a la base de datos');
-            } catch (e) {
-                // La columna ya existe, ignorar error
-            }
+            } catch (e) { }
 
             await this.loadTrips(this._currentDate());
+            console.log('🚀 Database fully initialized');
 
         } catch (err) {
-            console.error('Database initialization failed', err);
+            console.error('❌ Database initialization failed', err);
+            throw err; // Re-throw to catch it in ensureDb if needed
+        }
+    }
+
+    private async ensureDb() {
+        if (!this.db) {
+            console.warn('⚠️ DB not initialized when calling operation. Forcing init...');
+            await this.initializeApp();
         }
     }
 
     async loadTrips(date: string) {
+        await this.ensureDb();
         const res = await this.db.query('SELECT * FROM trips WHERE date = ?', [date]);
         const data = res.values as Trip[] || [];
         this._trips.set(data);
@@ -138,6 +146,7 @@ export class DatabaseService {
     }
 
     async loadMonthlySummary() {
+        await this.ensureDb();
         const res = await this.db.query(`
             SELECT
               substr(date, 1, 7) as month,
@@ -168,11 +177,13 @@ export class DatabaseService {
     }
 
     async getTripsByDate(date: string): Promise<Trip[]> {
+        await this.ensureDb();
         const res = await this.db.query('SELECT * FROM trips WHERE date = ? ORDER BY time IS NULL, time ASC, id DESC', [date]);
         return (res.values as Trip[]) || [];
     }
 
     async getDayCountsForMonth(monthIso: string): Promise<Record<string, number>> {
+        await this.ensureDb();
         const res = await this.db.query(`
             SELECT
               date as date,
@@ -193,6 +204,7 @@ export class DatabaseService {
     }
 
     async addTrip(trip: Omit<Trip, 'id'>) {
+        await this.ensureDb();
         const { date, section, passenger, destination, description, amount, time } = trip;
         await this.db.run(
             'INSERT INTO trips (date, section, passenger, destination, description, amount, time) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -202,11 +214,13 @@ export class DatabaseService {
     }
 
     async deleteTrip(id: number, date: string) {
+        await this.ensureDb();
         await this.db.run('DELETE FROM trips WHERE id = ?', [id]);
         await this.loadTrips(date);
     }
 
     async updateDate(date: string) {
+        // No DB call here properly, but loadTrips is called next line usually.
         this._currentDate.set(date);
         await this.loadTrips(date);
     }

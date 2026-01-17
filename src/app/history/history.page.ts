@@ -23,8 +23,11 @@ export class HistoryPage {
   public vueltaTrips = signal<Trip[]>([]);
 
   constructor() {
-    this.refreshMonth();
-    this.selectDay(this.selectedDate());
+  }
+
+  async ionViewWillEnter() {
+    await this.refreshMonth();
+    await this.selectDay(this.selectedDate());
   }
 
   private toLocalIsoDate(d: Date): string {
