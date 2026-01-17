@@ -93,7 +93,8 @@ export class HomePage {
           destination: parsed.destination || undefined,
           description: parsed.description,
           amount: parsed.amount,
-          time: parsed.time || undefined
+          time: parsed.time || undefined,
+          packageType: parsed.packageType || undefined
         });
 
         if (parsed.time && targetDate) {
@@ -143,60 +144,97 @@ export class HomePage {
   }
 
   async manualEntry() {
-    const alert = await this.alertCtrl.create({
-      header: 'Carga Manual',
-      inputs: [
+    const section = this.selectedSection();
+    const isEncomienda = section === 'encomienda';
+
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const currentTime = `${hours}:${minutes}`;
+
+    const inputs: any[] = [];
+
+    if (isEncomienda) {
+      inputs.push(
+        { name: 'packageType', type: 'text', placeholder: 'Tipo (Sobre, Caja, Bici...)' },
+        { name: 'destination', type: 'text', placeholder: 'Destino (Pueblo/Ciudad)' },
+        { name: 'description', type: 'text', placeholder: 'Dirección (Calle y Número)' },
+        { name: 'amount', type: 'number', placeholder: 'Importe ($)' },
+        { name: 'time', type: 'time', placeholder: 'Hora (Requerido)', value: currentTime }
+      );
+    } else {
+      inputs.push(
         { name: 'passenger', type: 'text', placeholder: 'Pasajero (opcional)' },
         { name: 'destination', type: 'text', placeholder: 'Destino (opcional)' },
         { name: 'description', type: 'text', placeholder: 'Descripción (Nombre/Lugar)' },
         { name: 'amount', type: 'number', placeholder: 'Importe ($)' },
-        { name: 'time', type: 'time', placeholder: 'Hora (opcional)' }
-      ],
+        { name: 'time', type: 'time', placeholder: 'Hora (opcional)', value: currentTime }
+      );
+    }
+
+    const alert = await this.alertCtrl.create({
+      header: isEncomienda ? 'Nueva Encomienda' : 'Carga Manual',
+      inputs: inputs,
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
         {
           text: 'Guardar',
           handler: async (data) => {
-            if (data.description && data.amount) {
-              try {
-                // Sanitización estricta para carga manual también
-                const cleanAmount = this.voice.parseAmount(data.amount);
-
-                const passenger = (data.passenger || '').trim();
-                const destination = (data.destination || '').trim();
-
-                await this.db.addTrip({
-                  date: this.currentDate(),
-                  section: this.selectedSection(),
-                  passenger: passenger ? passenger : undefined,
-                  destination: destination ? destination : undefined,
-                  description: data.description,
-                  amount: cleanAmount,
-                  time: data.time || undefined
-                });
-
-                if (data.time) {
-                  await this.notifications.scheduleOneHourBefore({
-                    date: this.currentDate(),
-                    time: data.time,
-                    description: data.description,
-                    section: this.selectedSection(),
-                  });
-                }
-                this.haptics.success();
-
-                // Recarga explícita y forzado de UI
-                await this.db.loadTrips(this.currentDate());
-                this.cdr.detectChanges();
-              } catch (e) {
-                const errAlert = await this.alertCtrl.create({
-                  header: 'Error',
-                  message: 'Falló al guardar: ' + JSON.stringify(e),
-                  buttons: ['OK']
-                });
-                await errAlert.present();
-              }
+            // Validación específica
+            if (!data.description || !data.amount) {
+              return false; // Mantiene abierto si faltan datos básicos
             }
+
+            if (isEncomienda && !data.time) {
+              // Feedback visual podría requerirse, por ahora impedimos guardar
+              const toast = await this.toastCtrl.create({
+                message: '⚠️ La hora es obligatoria para encomiendas',
+                duration: 2000,
+                color: 'danger',
+                position: 'top'
+              });
+              await toast.present();
+              return false;
+            }
+
+            try {
+              const cleanAmount = this.voice.parseAmount(data.amount);
+              // Sanitización
+              const passenger = (data.passenger || '').trim();
+              const destination = (data.destination || '').trim();
+              const packageType = (data.packageType || '').trim();
+
+              await this.db.addTrip({
+                date: this.currentDate(),
+                section: this.selectedSection(),
+                passenger: passenger ? passenger : undefined,
+                destination: destination ? destination : undefined,
+                description: data.description,
+                amount: cleanAmount,
+                time: data.time || undefined,
+                packageType: packageType ? packageType : undefined
+              });
+
+              if (data.time) {
+                await this.notifications.scheduleOneHourBefore({
+                  date: this.currentDate(),
+                  time: data.time,
+                  description: data.description,
+                  section: this.selectedSection(),
+                });
+              }
+              this.haptics.success();
+              await this.db.loadTrips(this.currentDate());
+              this.cdr.detectChanges();
+            } catch (e) {
+              const errAlert = await this.alertCtrl.create({
+                header: 'Error',
+                message: 'Falló al guardar: ' + JSON.stringify(e),
+                buttons: ['OK']
+              });
+              await errAlert.present();
+            }
+            return true;
           }
         }
       ]
@@ -217,9 +255,25 @@ export class HomePage {
       header: 'Exportar / Compartir',
       buttons: [
         {
-          text: 'Resumen',
+          text: 'Resumen Texto',
           handler: async () => {
             await this.share.shareDailySummary(this.currentDate(), this.trips(), this.totalRevenue());
+          }
+        },
+        {
+          text: 'PDF (Hoja de Ruta)',
+          handler: async () => {
+            try {
+              await this.share.shareDailyPdf(this.currentDate(), this.trips(), this.totalRevenue());
+            } catch (e) {
+              console.error('Error sharing PDF', e);
+              const toast = await this.toastCtrl.create({
+                message: 'Error al generar PDF: ' + JSON.stringify(e),
+                duration: 4000,
+                color: 'danger'
+              });
+              await toast.present();
+            }
           }
         },
         { text: 'Cancelar', role: 'cancel' }

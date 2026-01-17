@@ -121,6 +121,11 @@ export class DatabaseService {
                 await this.db.execute(`ALTER TABLE trips ADD COLUMN destination TEXT;`);
             } catch (e) { }
 
+            // Migración: Agregar columna packageType si no existe (para Encomiendas)
+            try {
+                await this.db.execute(`ALTER TABLE trips ADD COLUMN packageType TEXT;`);
+            } catch (e) { }
+
             await this.loadTrips(this._currentDate());
             console.log('🚀 Database fully initialized');
 
@@ -205,10 +210,10 @@ export class DatabaseService {
 
     async addTrip(trip: Omit<Trip, 'id'>) {
         await this.ensureDb();
-        const { date, section, passenger, destination, description, amount, time } = trip;
+        const { date, section, passenger, destination, description, amount, time, packageType } = trip;
         await this.db.run(
-            'INSERT INTO trips (date, section, passenger, destination, description, amount, time) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [date, section, passenger || null, destination || null, description, amount, time || null]
+            'INSERT INTO trips (date, section, passenger, destination, description, amount, time, packageType) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [date, section, passenger || null, destination || null, description, amount, time || null, packageType || null]
         );
         await this.loadTrips(date);
     }

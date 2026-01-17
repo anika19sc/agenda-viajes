@@ -69,13 +69,27 @@
                   class="text-xl"></ion-icon>
               </div>
               <div class="flex-1">
-                <h3 class="font-bold text-slate-800 m-0">{{ trip.description }}</h3>
+                <!-- LOGIC FOR ENCOMIENDA -->
+                <ng-container *ngIf="trip.section === 'encomienda'; else standardTrip">
+                  <h3 class="font-bold text-slate-800 m-0 uppercase text-sm">
+                    {{ trip.packageType || 'Encomienda' }}
+                    <span *ngIf="trip.destination" class="text-slate-500 font-normal">➔ {{ trip.destination }}</span>
+                  </h3>
+                  <p class="text-xs text-slate-600 m-0 mt-1 font-medium">{{ trip.description }}</p>
+                </ng-container>
+
+                <!-- LOGIC FOR STANDARD TRIP -->
+                <ng-template #standardTrip>
+                  <h3 class="font-bold text-slate-800 m-0">{{ trip.description }}</h3>
+                  <p *ngIf="trip.passenger" class="text-xs text-slate-500 m-0 mt-1">👤 {{ trip.passenger }}</p>
+                </ng-template>
+
                 <p *ngIf="trip.time" class="text-xs text-slate-500 m-0 mt-1">
                   🕐 {{ trip.time }}
                 </p>
               </div>
               <div class="text-right pr-4">
-                <span class="font-black text-lg text-emerald-600">{{ trip.amount | currency:'ARS':'symbol':'1.2-2'
+                <span class="font-black text-lg text-emerald-600">{{ trip.amount | currency:'ARS':'symbol':'1.0-0'
                   }}</span>
               </div>
             </div>

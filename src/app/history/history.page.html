@@ -47,14 +47,12 @@
           [class.text-slate-900]="d.isCurrentMonth" [class.text-slate-300]="!d.isCurrentMonth"
           [class.bg-slate-100]="!d.isCurrentMonth && d.date !== selectedDate()"
           [ngClass]="{'bg-[#1b3a61] text-white shadow-lg scale-105': d.date === selectedDate(), 'hover:bg-slate-50': d.date !== selectedDate() && d.isCurrentMonth}">
-          
+
           <span>{{ d.day }}</span>
-          
+
           <!-- Indicator Dot -->
-          <span *ngIf="d.count > 0"
-            [class.bg-emerald-400]="d.date === selectedDate()"
-            [class.bg-emerald-500]="d.date !== selectedDate()"
-            class="absolute bottom-1 w-1.5 h-1.5 rounded-full">
+          <span *ngIf="d.count > 0" [class.bg-emerald-400]="d.date === selectedDate()"
+            [class.bg-emerald-500]="d.date !== selectedDate()" class="absolute bottom-1 w-1.5 h-1.5 rounded-full">
           </span>
         </button>
       </div>
@@ -95,14 +93,19 @@
         <div *ngIf="encomiendaTrips().length === 0" class="text-slate-400 text-sm">Sin encomiendas</div>
         <div class="space-y-2">
           <div *ngFor="let t of encomiendaTrips()" class="rounded-xl bg-slate-50 p-3 flex items-center justify-between">
-            <div>
-              <div class="font-bold text-slate-800">{{ (t.passenger || t.description) }}</div>
-              <div class="text-xs text-slate-500">
-                {{ t.destination ? ('a ' + t.destination) : '' }}
-                <span *ngIf="t.time"> • 🕐 {{ t.time }}</span>
+            <div class="flex-1 pr-2">
+              <div class="font-bold text-slate-800 uppercase text-xs flex items-center gap-1">
+                <ion-icon name="cube-outline" class="text-emerald-500"></ion-icon>
+                {{ t.packageType || 'Encomienda' }}
+                <span *ngIf="t.destination" class="text-slate-500 font-normal">➔ {{ t.destination }}</span>
+              </div>
+              <div class="text-sm text-slate-700 font-medium leading-tight mt-1">{{ t.description }}</div>
+              <div *ngIf="t.time" class="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                <ion-icon name="time-outline"></ion-icon> {{ t.time }}
               </div>
             </div>
-            <div class="font-black text-emerald-600">{{ t.amount | currency:'ARS':'symbol':'1.2-2' }}</div>
+            <div class="font-black text-emerald-600 text-right whitespace-nowrap">{{ t.amount |
+              currency:'ARS':'symbol':'1.0-0' }}</div>
           </div>
         </div>
       </div>

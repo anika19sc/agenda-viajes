@@ -386,7 +386,31 @@ export class VoiceService {
         return { passenger: passenger || null, destination: null };
     }
 
-    parseSentence(sentence: string, baseDateIso?: string): { passenger: string | null, destination: string | null, description: string, amount: number, time: string | null, date: string | null } {
+    private detectPackageType(text: string): { type: string | null, cleanText: string } {
+        const lower = text.toLowerCase();
+        const types = [
+            { key: 'sobre', normalized: 'Sobre' },
+            { key: 'caja', normalized: 'Caja' },
+            { key: 'bicicleta', normalized: 'Bicicleta' },
+            { key: 'bici', normalized: 'Bicicleta' },
+            { key: 'bolso', normalized: 'Bolso' },
+            { key: 'paquete', normalized: 'Paquete' },
+            { key: 'encomienda', normalized: 'Encomienda' }
+        ];
+
+        for (const t of types) {
+            // Match isolated word or at start/end
+            const regex = new RegExp(`\\b${t.key}\\b`, 'i');
+            if (regex.test(lower)) {
+                // Remove the word from the text to clean it up
+                const clean = text.replace(new RegExp(`\\b${t.key}\\b`, 'gi'), '').replace(/\s+/g, ' ').trim();
+                return { type: t.normalized, cleanText: clean };
+            }
+        }
+        return { type: null, cleanText: text };
+    }
+
+    parseSentence(sentence: string, baseDateIso?: string): { passenger: string | null, destination: string | null, description: string, amount: number, time: string | null, date: string | null, packageType: string | null } {
         console.log('Original sentence to parse:', sentence);
 
         // 1. Extraer tiempo PRIMERO
@@ -438,8 +462,17 @@ export class VoiceService {
             amount = this.parseAmount(amountStr);
         }
 
-        // 3. Extraer pasajero/destino y descripción final
-        const cleaned = this.cleanForPassengerDestination(sentence, amountStr, time);
+        // 3. Detectar Tipo de Encomienda
+        let textForDescription = sentence;
+        // Solo intentamos detectar tipo si NO es un viaje de pasajero obvio, a menos que queramos soportar todo.
+        // Asumiremos que si detecta la palabra clave, es el tipo.
+        const pkg = this.detectPackageType(sentence);
+        const packageType = pkg.type;
+        // Opcional: ¿removemos la palabra del texto original?
+        // textForDescription = pkg.cleanText; 
+
+        // 4. Extraer pasajero/destino y descripción final
+        const cleaned = this.cleanForPassengerDestination(textForDescription, amountStr, time);
         let { passenger, destination } = this.parsePassengerDestination(cleaned);
         if (passenger) passenger = this.toTitleCase(passenger);
         if (destination) destination = this.toTitleCase(destination);
@@ -460,8 +493,8 @@ export class VoiceService {
         }
 
         description = this.toTitleCase(description);
-        console.log('Parsed result:', { passenger, destination, description, amount, time, date });
+        console.log('Parsed result:', { passenger, destination, description, amount, time, date, packageType });
 
-        return { passenger, destination, description, amount, time, date };
+        return { passenger, destination, description, amount, time, date, packageType };
     }
 }

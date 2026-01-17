@@ -188,9 +188,9 @@ export class ShareService {
         doc.setLineWidth(0.5);
         doc.roundedRect(margin, 20, pageWidth - (margin * 2), 80, 15, 15, 'S');
 
-        const logoDataUrl = await this.assetToDataUrl('assets/icon/favicon.png');
+        const logoDataUrl = await this.assetToDataUrl('assets/logo.jpg');
         if (logoDataUrl) {
-            doc.addImage(logoDataUrl, 'PNG', (pageWidth / 2) - 20, 26, 40, 40);
+            doc.addImage(logoDataUrl, 'JPEG', (pageWidth / 2) - 20, 26, 40, 40);
         }
 
         doc.setFont('helvetica', 'bold');
@@ -221,40 +221,57 @@ export class ShareService {
             return rows;
         };
 
+        const availableWidth = pageWidth - (margin * 2);
+
+        // Distribución de columnas (Total debe ser availableWidth)
+        // Antes: 280 + 120 + 80 = 480. Faltaban unos 35pt.
+        // Ahora: Ajustamos para llenar el ancho.
+        const colImporte = 90;
+        const colDestino = 140;
+        const colDesc = availableWidth - colImporte - colDestino; // Resto para descripción
+
         const columnStyles = {
-            0: { cellWidth: 280 },
-            1: { cellWidth: 120 },
-            2: { cellWidth: 80, halign: 'right' as const }
+            0: { cellWidth: colDesc, valign: 'middle' as const },
+            1: { cellWidth: colDestino, valign: 'middle' as const },
+            2: { cellWidth: colImporte, halign: 'right' as const, valign: 'middle' as const }
         };
 
         const tableBase = {
             theme: 'grid' as const,
-            styles: { lineColor: blueColor as any, lineWidth: 0.5, cellPadding: 4, textColor: [0, 0, 0] as any, font: 'helvetica', fontSize: 9 },
-            headStyles: { fillColor: [255, 255, 255] as any, textColor: [0, 0, 0] as any, fontStyle: 'bold' as const, halign: 'center' as const },
+            styles: {
+                lineColor: blueColor as any,
+                lineWidth: 0.5,
+                cellPadding: 6, // Un poco más de aire
+                textColor: [0, 0, 0] as any,
+                font: 'helvetica',
+                fontSize: 10 // Letra un poco más grande
+            },
+            headStyles: {
+                fillColor: [255, 255, 255] as any,
+                textColor: [0, 0, 0] as any,
+                fontStyle: 'bold' as const,
+                halign: 'center' as const,
+                valign: 'middle' as const
+            },
             margin: { left: margin, right: margin }
         };
 
+        // TABLA FECHA
         autoTable(doc, {
             ...tableBase,
             startY: y,
             head: [['FECHA', formattedDate]],
             body: [],
-            columnStyles: { 0: { cellWidth: 60 }, 1: { cellWidth: 280 + 120 + 80 - 60 } },
-            styles: { ...tableBase.styles, fontStyle: 'bold' as const },
+            columnStyles: {
+                0: { cellWidth: 80, valign: 'middle' as const, fontStyle: 'bold' as const },
+                1: { cellWidth: availableWidth - 80, valign: 'middle' as const }
+            },
+            styles: { ...tableBase.styles },
             headStyles: { ...tableBase.headStyles, halign: 'left' as const }
         });
         y = ((doc as any).lastAutoTable?.finalY ?? y);
 
-        const idaRows = fillRows(trips.filter(t => t.section === 'ida').map(toIdaRow), 4);
-        autoTable(doc, {
-            ...tableBase,
-            startY: y,
-            head: [['PASAJEROS PARA IR', 'DESTINO', 'IMPORTE']],
-            body: idaRows,
-            columnStyles
-        });
-        y = ((doc as any).lastAutoTable?.finalY ?? y) + 6;
-
+        // TABLA 1: ENCOMIENDAS (30 filas fijas) - PAGINA 1
         const encRows = fillRows(trips.filter(t => t.section === 'encomienda').map(toEncRow), 30);
         autoTable(doc, {
             ...tableBase,
@@ -263,8 +280,26 @@ export class ShareService {
             body: encRows,
             columnStyles
         });
-        y = ((doc as any).lastAutoTable?.finalY ?? y) + 6;
 
+        // Forzar salto de página para Ida/Vuelta
+        doc.addPage();
+        y = 40; // Margen superior página 2
+
+        // CABECERA PAGINA 2 (Opcional, repetimos logo/título simple)
+        // doc.text('Voz Ruta - Pasajeros', pageWidth / 2, 30, { align: 'center' });
+
+        // TABLA 2: IDA (4 filas fijas)
+        const idaRows = fillRows(trips.filter(t => t.section === 'ida').map(toIdaRow), 4);
+        autoTable(doc, {
+            ...tableBase,
+            startY: y,
+            head: [['PASAJEROS PARA IR', 'DESTINO', 'IMPORTE']],
+            body: idaRows,
+            columnStyles
+        });
+        y = ((doc as any).lastAutoTable?.finalY ?? y) + 20;
+
+        // TABLA 3: VUELTA (4 filas fijas)
         const vueltaRows = fillRows(trips.filter(t => t.section === 'vuelta').map(toIdaRow), 4);
         autoTable(doc, {
             ...tableBase,
@@ -291,7 +326,8 @@ export class ShareService {
 
         await Share.share({
             title: `PDF ${date}`,
-            url: uriResult.uri,
+            text: 'Hoja de Ruta', // A veces ayuda tener texto
+            files: [uriResult.uri],
             dialogTitle: 'Compartir PDF por...'
         });
     }

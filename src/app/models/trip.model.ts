@@ -7,4 +7,5 @@ export interface Trip {
     description: string;
     amount: number;
     time?: string; // HH:mm format
+    packageType?: string; // Encomienda type (e.g., Sobre, Caja)
 }
