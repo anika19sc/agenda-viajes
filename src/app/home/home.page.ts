@@ -5,7 +5,7 @@ import { ShareService } from '../services/share.service';
 import { HapticsService } from '../services/haptics.service';
 import { NotificationService } from '../services/notification.service';
 import { Trip } from '../models/trip.model';
-import { AlertController, ToastController } from '@ionic/angular';
+import { AlertController, ToastController, ActionSheetController } from '@ionic/angular';
 
 @Component({
   selector: 'app-home',
@@ -18,6 +18,7 @@ export class HomePage {
   private voice = inject(VoiceService);
   private share = inject(ShareService);
   private alertCtrl = inject(AlertController);
+  private actionSheetCtrl = inject(ActionSheetController);
   private toastCtrl = inject(ToastController);
   private haptics = inject(HapticsService);
   private notifications = inject(NotificationService);
@@ -49,18 +50,35 @@ export class HomePage {
     await this.db.nextDay();
   }
 
-  async recordVoice() {
+  // Signal to track which section is currently recording
+  public recordingSection = signal<'ida' | 'vuelta' | 'encomienda' | null>(null);
+
+  async recordVoice(section: 'ida' | 'vuelta' | 'encomienda') {
     this.haptics.impactLight();
 
+    // If already recording
     if (this.isRecording()) {
-      this.voice.stopListening();
-      return;
+      // If clicking the SAME button -> STOP
+      if (this.recordingSection() === section) {
+        this.voice.stopListening();
+        this.recordingSection.set(null);
+        return;
+      } else {
+        // If clicking a DIFFERENT button while recording -> Ignore or Stop previous?
+        // Let's stop previous and start new for safety, or just block.
+        // For simplicity: Stop previous, don't start new immediately to avoid confusion.
+        await this.voice.stopListening();
+        this.recordingSection.set(null);
+        return;
+      }
     }
 
+    // Start Recording
+    this.recordingSection.set(section);
+
     try {
-      // DEBUG: Toast de inicio
       const toastStart = await this.toastCtrl.create({
-        message: '🎤 Escuchando...',
+        message: `🎤 Escuchando para ${section.toUpperCase()}...`,
         duration: 1000,
         position: 'top',
         color: 'warning'
@@ -72,7 +90,6 @@ export class HomePage {
       if (sentence) {
         console.log("Procesando entrada de voz:", sentence);
 
-        // DEBUG: Toast con lo que escuchó
         const toastHeard = await this.toastCtrl.create({
           message: `👂 Escuché: "${sentence}"`,
           duration: 2000,
@@ -84,11 +101,13 @@ export class HomePage {
         const parsed = this.voice.parseSentence(sentence, this.currentDate());
         const targetDate = parsed.date || this.currentDate();
 
-        // CICLO DE GUARDADO Y CARGA ESTRICTA
+        // LOGIC: Use the explicitly selected section
+        const targetSection = section;
+
         console.log("Iniciando INSERT en DB...");
         await this.db.addTrip({
           date: targetDate,
-          section: this.selectedSection(),
+          section: targetSection,
           passenger: parsed.passenger || undefined,
           destination: parsed.destination || undefined,
           description: parsed.description,
@@ -97,35 +116,36 @@ export class HomePage {
           packageType: parsed.packageType || undefined
         });
 
+        // Notifications logic remains same
         if (parsed.time && targetDate) {
           await this.notifications.scheduleOneHourBefore({
             date: targetDate,
             time: parsed.time,
             description: parsed.description,
-            section: this.selectedSection(),
+            section: targetSection,
           });
         }
 
         console.log("✅ Registro INSERT exitoso. Iniciando recarga SELECT...");
-        // Aseguramos la recarga explícita para que el signal se actualice
         await this.db.loadTrips(this.currentDate());
 
         this.haptics.success();
-        this.cdr.detectChanges();
-        console.log("🚀 SELECT completado y UI refrescada.");
+        this.cdr.detectChanges(); // Refresh UI
+        this.recordingSection.set(null); // Reset state
 
-        // DEBUG: Toast de éxito final
         const toastSuccess = await this.toastCtrl.create({
-          message: '✅ Guardado correctamente en Base de Datos',
+          message: `✅ Guardado en ${targetSection.toUpperCase()}`,
           duration: 2000,
           position: 'top',
           color: 'success'
         });
         await toastSuccess.present();
+
       } else {
-        // DEBUG: Toast si no escuchó nada
+        // No sentence heard
+        this.recordingSection.set(null);
         const toastEmpty = await this.toastCtrl.create({
-          message: '❌ No escuché nada. Intenta de nuevo.',
+          message: '❌ No escuché nada.',
           duration: 2000,
           position: 'top',
           color: 'medium'
@@ -133,6 +153,7 @@ export class HomePage {
         await toastEmpty.present();
       }
     } catch (err) {
+      this.recordingSection.set(null);
       console.error('❌ Error en el flujo de voz/DB:', err);
       const alert = await this.alertCtrl.create({
         header: 'Error Crítico',
@@ -144,7 +165,36 @@ export class HomePage {
   }
 
   async manualEntry() {
-    const section = this.selectedSection();
+    const actionSheet = await this.actionSheetCtrl.create({
+      header: '¿Qué deseas registrar?',
+      buttons: [
+        {
+          text: 'Viaje de IDA',
+          icon: 'arrow-forward',
+          handler: () => { this.showManualForm('ida'); }
+        },
+        {
+          text: 'Envíar ENCOMIENDA',
+          icon: 'cube',
+          handler: () => { this.showManualForm('encomienda'); }
+        },
+        {
+          text: 'Viaje de VUELTA',
+          icon: 'arrow-back',
+          handler: () => { this.showManualForm('vuelta'); }
+        },
+        {
+          text: 'Cancelar',
+          icon: 'close',
+          role: 'cancel',
+          handler: () => { }
+        }
+      ]
+    });
+    await actionSheet.present();
+  }
+
+  async showManualForm(section: 'ida' | 'vuelta' | 'encomienda') {
     const isEncomienda = section === 'encomienda';
 
     const now = new Date();
@@ -173,7 +223,7 @@ export class HomePage {
     }
 
     const alert = await this.alertCtrl.create({
-      header: isEncomienda ? 'Nueva Encomienda' : 'Carga Manual',
+      header: isEncomienda ? 'Nueva Encomienda' : (section === 'ida' ? 'Carga Manual (IDA)' : 'Carga Manual (VUELTA)'),
       inputs: inputs,
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
@@ -206,7 +256,7 @@ export class HomePage {
 
               await this.db.addTrip({
                 date: this.currentDate(),
-                section: this.selectedSection(),
+                section: section,
                 passenger: passenger ? passenger : undefined,
                 destination: destination ? destination : undefined,
                 description: data.description,
@@ -220,7 +270,7 @@ export class HomePage {
                   date: this.currentDate(),
                   time: data.time,
                   description: data.description,
-                  section: this.selectedSection(),
+                  section: section,
                 });
               }
               this.haptics.success();

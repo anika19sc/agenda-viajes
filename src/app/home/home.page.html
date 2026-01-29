@@ -29,64 +29,46 @@
 </ion-header>
 
 <ion-content [fullscreen]="true" class="bg-slate-50">
-  <!-- Section Tabs -->
-  <div class="flex p-2 bg-white sticky top-0 z-10 shadow-sm">
-    <button (click)="selectedSection.set('ida')" [style.background-color]="selectedSection() === 'ida' ? '#f7941d' : ''"
-      [class.text-white]="selectedSection() === 'ida'"
-      class="flex-1 py-3 px-2 rounded-xl font-bold text-xs transition-all text-slate-600">
-      VIAJE DE IDA
-    </button>
-    <button (click)="selectedSection.set('encomienda')"
-      [style.background-color]="selectedSection() === 'encomienda' ? '#f7941d' : ''"
-      [class.text-white]="selectedSection() === 'encomienda'"
-      class="flex-1 py-3 px-2 rounded-xl font-bold text-xs transition-all ml-2 text-slate-600">
-      ENCOMIENDA
-    </button>
-    <button (click)="selectedSection.set('vuelta')"
-      [style.background-color]="selectedSection() === 'vuelta' ? '#f7941d' : ''"
-      [class.text-white]="selectedSection() === 'vuelta'"
-      class="flex-1 py-3 px-2 rounded-xl font-bold text-xs transition-all ml-2 text-slate-600">
-      VIAJE DE VUELTA
-    </button>
-  </div>
+  <!-- Section Tabs REMOVED -->
 
   <!-- Trip List -->
-  <div class="p-4 mb-24">
-    <div *ngIf="trips().length === 0" class="flex flex-col items-center justify-center py-24 sm:py-32 text-slate-400">
-      <ion-icon name="calendar-outline" class="text-7xl sm:text-8xl mb-4 opacity-50"></ion-icon>
-      <p class="font-bold text-lg sm:text-xl">No hay registros hoy</p>
-      <p class="text-sm opacity-70 mt-1">Tocá el botón naranja para empezar</p>
+  <div class="pb-24">
+    <div *ngIf="trips().length === 0" class="flex flex-col items-center justify-center py-12 text-slate-400">
+      <ion-icon name="calendar-outline" class="text-7xl mb-4 opacity-50"></ion-icon>
+      <p class="font-bold text-lg">No hay registros hoy</p>
+      <p class="text-xs opacity-70 mt-1">Usá los botones para grabar</p>
     </div>
 
-    <ion-list lines="none" class="bg-transparent">
+    <!-- IDA -->
+    <div class="px-4 py-2 mt-2 bg-slate-100/50 border-b border-t border-slate-200">
+      <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest m-0 pl-1">Viaje de Ida</h3>
+    </div>
+
+    <!-- Button IDA -->
+    <div class="px-4 py-3">
+      <button (click)="recordVoice('ida')"
+        class="w-full rounded-2xl p-4 text-white shadow-lg flex items-center justify-center gap-3 transform active:scale-95 transition-all bg-gradient-to-r from-orange-500 to-orange-400">
+        <ion-icon [name]="(isRecording() && recordingSection() === 'ida') ? 'stop' : 'mic'" class="text-2xl"></ion-icon>
+        <span class="font-bold text-sm uppercase tracking-wider">
+          {{ (isRecording() && recordingSection() === 'ida') ? 'DETENER' : 'GRABAR VIAJE DE IDA' }}
+        </span>
+      </button>
+    </div>
+
+    <ion-list lines="none" class="bg-transparent px-4">
       <ng-container *ngFor="let trip of trips()">
-        <ion-item-sliding *ngIf="trip.section === selectedSection()">
+        <ion-item-sliding *ngIf="trip.section === 'ida'">
           <ion-item class="mb-3 rounded-2xl shadow-sm overflow-hidden"
-            style="--inner-padding-end: 0; --padding-start: 12px;">
+            style="--inner-padding-end: 0; --padding-start: 12px; --background: white;">
+            <!-- Item Content -->
             <div class="flex items-center w-full py-3">
-              <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4">
-                <ion-icon [name]="trip.section === 'encomienda' ? 'cube' : 'person'" style="color: #49bfa8;"
-                  class="text-xl"></ion-icon>
+              <div class="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mr-4">
+                <ion-icon name="person" style="color: #1b3a61;" class="text-xl"></ion-icon>
               </div>
               <div class="flex-1">
-                <!-- LOGIC FOR ENCOMIENDA -->
-                <ng-container *ngIf="trip.section === 'encomienda'; else standardTrip">
-                  <h3 class="font-bold text-slate-800 m-0 uppercase text-sm">
-                    {{ trip.packageType || 'Encomienda' }}
-                    <span *ngIf="trip.destination" class="text-slate-500 font-normal">➔ {{ trip.destination }}</span>
-                  </h3>
-                  <p class="text-xs text-slate-600 m-0 mt-1 font-medium">{{ trip.description }}</p>
-                </ng-container>
-
-                <!-- LOGIC FOR STANDARD TRIP -->
-                <ng-template #standardTrip>
-                  <h3 class="font-bold text-slate-800 m-0">{{ trip.description }}</h3>
-                  <p *ngIf="trip.passenger" class="text-xs text-slate-500 m-0 mt-1">👤 {{ trip.passenger }}</p>
-                </ng-template>
-
-                <p *ngIf="trip.time" class="text-xs text-slate-500 m-0 mt-1">
-                  🕐 {{ trip.time }}
-                </p>
+                <h3 class="font-bold text-slate-800 m-0">{{ trip.description }}</h3>
+                <p *ngIf="trip.passenger" class="text-xs text-slate-500 m-0 mt-1">👤 {{ trip.passenger }}</p>
+                <p *ngIf="trip.time" class="text-xs text-slate-500 m-0 mt-1">🕐 {{ trip.time }}</p>
               </div>
               <div class="text-right pr-4">
                 <span class="font-black text-lg text-emerald-600">{{ trip.amount | currency:'ARS':'symbol':'1.0-0'
@@ -94,7 +76,103 @@
               </div>
             </div>
           </ion-item>
+          <ion-item-options side="end">
+            <ion-item-option color="danger" (click)="deleteTrip(trip)" class="rounded-2xl ml-2">
+              <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+            </ion-item-option>
+          </ion-item-options>
+        </ion-item-sliding>
+      </ng-container>
+    </ion-list>
 
+    <!-- ENCOMIENDA -->
+    <div class="px-4 py-2 mt-4 bg-slate-100/50 border-b border-t border-slate-200">
+      <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest m-0 pl-1">Encomiendas</h3>
+    </div>
+
+    <!-- Button ENCOMIENDA -->
+    <div class="px-4 py-3">
+      <button (click)="recordVoice('encomienda')"
+        class="w-full rounded-2xl p-4 text-white shadow-lg flex items-center justify-center gap-3 transform active:scale-95 transition-all bg-gradient-to-r from-violet-500 to-violet-400">
+        <ion-icon [name]="(isRecording() && recordingSection() === 'encomienda') ? 'stop' : 'mic'"
+          class="text-2xl"></ion-icon>
+        <span class="font-bold text-sm uppercase tracking-wider">
+          {{ (isRecording() && recordingSection() === 'encomienda') ? 'DETENER' : 'GRABAR ENCOMIENDA' }}
+        </span>
+      </button>
+    </div>
+
+    <ion-list lines="none" class="bg-transparent px-4">
+      <ng-container *ngFor="let trip of trips()">
+        <ion-item-sliding *ngIf="trip.section === 'encomienda'">
+          <ion-item class="mb-3 rounded-2xl shadow-sm overflow-hidden"
+            style="--inner-padding-end: 0; --padding-start: 12px; --background: white;">
+            <!-- Item Content -->
+            <div class="flex items-center w-full py-3">
+              <div class="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center mr-4">
+                <ion-icon name="cube" style="color: #f7941d;" class="text-xl"></ion-icon>
+              </div>
+              <div class="flex-1">
+                <h3 class="font-bold text-slate-800 m-0 uppercase text-sm">
+                  {{ trip.packageType || 'Encomienda' }}
+                  <span *ngIf="trip.destination" class="text-slate-500 font-normal">➔ {{ trip.destination }}</span>
+                </h3>
+                <p class="text-xs text-slate-600 m-0 mt-1 font-medium">{{ trip.description }}</p>
+                <p *ngIf="trip.time" class="text-xs text-slate-500 m-0 mt-1">🕐 {{ trip.time }}</p>
+              </div>
+              <div class="text-right pr-4">
+                <span class="font-black text-lg text-emerald-600">{{ trip.amount | currency:'ARS':'symbol':'1.0-0'
+                  }}</span>
+              </div>
+            </div>
+          </ion-item>
+          <ion-item-options side="end">
+            <ion-item-option color="danger" (click)="deleteTrip(trip)" class="rounded-2xl ml-2">
+              <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+            </ion-item-option>
+          </ion-item-options>
+        </ion-item-sliding>
+      </ng-container>
+    </ion-list>
+
+    <!-- VUELTA -->
+    <div class="px-4 py-2 mt-4 bg-slate-100/50 border-b border-t border-slate-200">
+      <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest m-0 pl-1">Viaje de Vuelta</h3>
+    </div>
+
+    <!-- Button VUELTA -->
+    <div class="px-4 py-3">
+      <button (click)="recordVoice('vuelta')"
+        class="w-full rounded-2xl p-4 text-white shadow-lg flex items-center justify-center gap-3 transform active:scale-95 transition-all bg-gradient-to-r from-cyan-500 to-cyan-400">
+        <ion-icon [name]="(isRecording() && recordingSection() === 'vuelta') ? 'stop' : 'mic'"
+          class="text-2xl"></ion-icon>
+        <span class="font-bold text-sm uppercase tracking-wider">
+          {{ (isRecording() && recordingSection() === 'vuelta') ? 'DETENER' : 'GRABAR VIAJE DE VUELTA' }}
+        </span>
+      </button>
+    </div>
+
+    <ion-list lines="none" class="bg-transparent px-4">
+      <ng-container *ngFor="let trip of trips()">
+        <ion-item-sliding *ngIf="trip.section === 'vuelta'">
+          <ion-item class="mb-3 rounded-2xl shadow-sm overflow-hidden"
+            style="--inner-padding-end: 0; --padding-start: 12px; --background: white;">
+            <!-- Item Content -->
+            <div class="flex items-center w-full py-3">
+              <div class="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mr-4">
+                <ion-icon name="arrow-back" style="color: #1b3a61;" class="text-xl"></ion-icon>
+              </div>
+              <div class="flex-1">
+                <h3 class="font-bold text-slate-800 m-0">{{ trip.description }}</h3>
+                <p *ngIf="trip.passenger" class="text-xs text-slate-500 m-0 mt-1">👤 {{ trip.passenger }}</p>
+                <p *ngIf="trip.time" class="text-xs text-slate-500 m-0 mt-1">🕐 {{ trip.time }}</p>
+              </div>
+              <div class="text-right pr-4">
+                <span class="font-black text-lg text-emerald-600">{{ trip.amount | currency:'ARS':'symbol':'1.0-0'
+                  }}</span>
+              </div>
+            </div>
+          </ion-item>
           <ion-item-options side="end">
             <ion-item-option color="danger" (click)="deleteTrip(trip)" class="rounded-2xl ml-2">
               <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
@@ -109,30 +187,15 @@
 </ion-content>
 
 <!-- Floating Actions -->
-<div class="fixed bottom-0 left-0 right-0 p-6 bottom-bar-safe bg-gradient-to-t from-white via-white to-transparent">
-  <div class="flex gap-4 items-center max-w-lg mx-auto">
+<div
+  class="fixed bottom-0 left-0 right-0 p-6 bottom-bar-safe bg-gradient-to-t from-white via-white to-transparent pointer-events-none">
+  <div class="flex gap-4 items-center max-w-lg mx-auto pointer-events-auto">
     <button (click)="manualEntry()" style="color: #1b3a61;"
       class="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white shadow-xl border-2 border-slate-100 flex items-center justify-center transform active:scale-90 transition-all">
       <ion-icon name="create-outline" class="text-2xl"></ion-icon>
     </button>
 
-    <div class="flex-1 flex flex-col items-center">
-      <div *ngIf="isRecording()" class="w-full mb-4 px-4 bg-slate-900/5 rounded-2xl py-2">
-        <app-waveform [stream]="audioStream()"></app-waveform>
-        <p class="text-center text-xs font-bold animate-pulse mt-1" style="color: #f7941d;">ESCUCHANDO...</p>
-      </div>
-
-      <button (click)="recordVoice()" style="background-color: #f7941d;" [class.scale-105]="isRecording()"
-        class="w-full h-16 sm:h-20 rounded-3xl text-white shadow-2xl flex items-center justify-center gap-3 transform active:scale-95 transition-all outline-none">
-        <div [style.background-color]="isRecording() ? '#fdba74' : '#e67e22'"
-          class="rounded-full p-2 sm:p-3 pulse-animation">
-          <ion-icon [name]="isRecording() ? 'stop' : 'mic'" class="text-2xl sm:text-3xl"></ion-icon>
-        </div>
-        <span class="text-lg sm:text-xl font-black uppercase tracking-widest text-white">{{ isRecording() ? 'DETENER' :
-          'GRABAR'
-          }}</span>
-      </button>
-    </div>
+    <div class="flex-1"></div>
 
     <button (click)="shareSummary()"
       class="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-emerald-500 text-white shadow-xl flex items-center justify-center transform active:scale-90 transition-all">
