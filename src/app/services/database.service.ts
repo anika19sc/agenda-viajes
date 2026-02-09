@@ -12,6 +12,13 @@ export interface MonthlySummaryRow {
     encomienda: number;
 }
 
+export interface Rate {
+    id?: number;
+    location: string;
+    type: 'passenger' | 'encomienda';
+    price: number;
+}
+
 @Injectable({
     providedIn: 'root'
 })
@@ -36,17 +43,21 @@ export class DatabaseService {
     );
 
     public readonly sectionTotals = computed(() => {
-        const totals = { ida: 0, vuelta: 0, encomienda: 0 };
+        const totals = { ida: 0, vuelta: 0, encomienda: 0, observaciones: 0 };
         this._trips().forEach(trip => {
-            totals[trip.section] += trip.amount;
+            if (trip.section in totals) {
+                totals[trip.section] += trip.amount;
+            }
         });
         return totals;
     });
 
     public readonly sectionCounts = computed(() => {
-        const counts = { ida: 0, vuelta: 0, encomienda: 0 };
+        const counts = { ida: 0, vuelta: 0, encomienda: 0, observaciones: 0 };
         this._trips().forEach(trip => {
-            counts[trip.section]++;
+            if (trip.section in counts) {
+                counts[trip.section]++;
+            }
         });
         return counts;
     });
@@ -126,12 +137,47 @@ export class DatabaseService {
                 await this.db.execute(`ALTER TABLE trips ADD COLUMN packageType TEXT;`);
             } catch (e) { }
 
+            // Migración: Agregar columna quantity si no existe (para Pasajeros)
+            try {
+                await this.db.execute(`ALTER TABLE trips ADD COLUMN quantity INTEGER DEFAULT 1;`);
+            } catch (e) { }
+
+            // Migración: Agregar columna observations si no existe
+            try {
+                await this.db.execute(`ALTER TABLE trips ADD COLUMN observations TEXT;`);
+            } catch (e) { }
+
+            // Crear tabla de Tarifas (Rates)
+            // Updated schema to include 'type' and make location+type unique
+            const ratesSchema = `
+        CREATE TABLE IF NOT EXISTS rates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          location TEXT NOT NULL,
+          type TEXT NOT NULL,
+          price REAL NOT NULL,
+          UNIQUE(location, type)
+        );
+      `;
+            await this.db.execute(ratesSchema);
+
+            // Migration for Rates: If table existed without 'type', we might need to recreate or alter.
+            // Since this is dev, let's try to add column 'type' if missing, defaulting to 'passenger'
+            try {
+                await this.db.execute(`ALTER TABLE rates ADD COLUMN type TEXT DEFAULT 'passenger';`);
+            } catch (e) {
+                // Column likely exists
+            }
+
+            // Inicializar tarifas por defecto si no existen
+            await this.initDefaultRates();
+
             await this.loadTrips(this._currentDate());
             console.log('🚀 Database fully initialized');
 
         } catch (err) {
             console.error('❌ Database initialization failed', err);
-            throw err; // Re-throw to catch it in ensureDb if needed
+            // DO NOT THROW. Resolve so app can start, even if DB is broken.
+            // Optionally set a signal to show error UI.
         }
     }
 
@@ -144,7 +190,7 @@ export class DatabaseService {
 
     async loadTrips(date: string) {
         await this.ensureDb();
-        const res = await this.db.query('SELECT * FROM trips WHERE date = ?', [date]);
+        const res = await this.db.query('SELECT * FROM trips WHERE date = ? ORDER BY time IS NULL, time ASC, id DESC', [date]);
         const data = res.values as Trip[] || [];
         this._trips.set(data);
         console.log(`[DB] loadTrips para ${date}: ${data.length} registros cargados.`);
@@ -210,10 +256,10 @@ export class DatabaseService {
 
     async addTrip(trip: Omit<Trip, 'id'>) {
         await this.ensureDb();
-        const { date, section, passenger, destination, description, amount, time, packageType } = trip;
+        const { date, section, passenger, destination, description, amount, time, packageType, quantity } = trip;
         await this.db.run(
-            'INSERT INTO trips (date, section, passenger, destination, description, amount, time, packageType) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [date, section, passenger || null, destination || null, description, amount, time || null, packageType || null]
+            'INSERT INTO trips (date, section, passenger, destination, description, amount, time, packageType, quantity) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [date, section, passenger || null, destination || null, description, amount, time || null, packageType || null, quantity || 1]
         );
         await this.loadTrips(date);
     }
@@ -221,6 +267,26 @@ export class DatabaseService {
     async deleteTrip(id: number, date: string) {
         await this.ensureDb();
         await this.db.run('DELETE FROM trips WHERE id = ?', [id]);
+        await this.loadTrips(date);
+    }
+
+    async updateTrip(trip: Trip) {
+        await this.ensureDb();
+        const { id, date, section, passenger, destination, description, amount, time, packageType, quantity } = trip;
+        if (!id) return;
+
+        await this.db.run(
+            `UPDATE trips SET 
+                passenger = ?, 
+                destination = ?, 
+                description = ?, 
+                amount = ?, 
+                time = ?, 
+                packageType = ?, 
+                quantity = ?
+             WHERE id = ?`,
+            [passenger || null, destination || null, description, amount, time || null, packageType || null, quantity || 1, id]
+        );
         await this.loadTrips(date);
     }
 
@@ -240,5 +306,65 @@ export class DatabaseService {
         const d = this.parseIsoAsLocalMidday(this._currentDate());
         d.setDate(d.getDate() - 1);
         await this.updateDate(this.toLocalIsoDate(d));
+    }
+
+    // --- RATES METHODS ---
+
+    private async initDefaultRates() {
+        console.log('Initializing/Verifying default rates');
+
+        const defaults = [
+            { loc: 'Resistencia', type: 'passenger', price: 50000 },
+            { loc: 'Corrientes', type: 'passenger', price: 64000 },
+            { loc: 'Resistencia', type: 'encomienda', price: 25000 },
+            { loc: 'Corrientes', type: 'encomienda', price: 25000 }
+        ];
+
+        try {
+            // WIPE AND RELOAD to ensure consistency with new values
+            await this.db.run('DELETE FROM rates');
+
+            for (const r of defaults) {
+                await this.db.run(
+                    'INSERT INTO rates (location, type, price) VALUES (?, ?, ?)',
+                    [r.loc, r.type, r.price]
+                );
+            }
+            console.log('✅ Rates re-seeded successfully:', defaults.length);
+        } catch (e) {
+            console.error('❌ Error re-seeding rates:', e);
+        }
+    }
+
+    async getRate(location: string, section?: string): Promise<number> {
+        await this.ensureDb();
+
+        // Map section to rate type
+        let type = 'passenger';
+        if (section === 'encomienda') type = 'encomienda';
+
+        const res = await this.db.query(
+            'SELECT price FROM rates WHERE UPPER(location) = UPPER(?) AND type = ?',
+            [location, type]
+        );
+
+        if (res.values && res.values.length > 0) {
+            return res.values[0].price;
+        }
+        return 0;
+    }
+
+    async updateRate(location: string, type: string, price: number) {
+        await this.ensureDb();
+        const res = await this.db.run('UPDATE rates SET price = ? WHERE UPPER(location) = UPPER(?) AND type = ?', [price, location, type]);
+        if (res.changes?.changes === 0) {
+            await this.db.run('INSERT INTO rates (location, type, price) VALUES (?, ?, ?)', [location, type, price]);
+        }
+    }
+
+    async getAllRates(): Promise<Rate[]> {
+        await this.ensureDb();
+        const res = await this.db.query('SELECT * FROM rates');
+        return (res.values as Rate[]) || [];
     }
 }

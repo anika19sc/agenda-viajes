@@ -13,7 +13,7 @@ export class VoiceService {
 
 
     constructor() {
-        this.checkAvailability();
+        // Lazy init or manual init preferred
     }
 
     async checkAvailability() {
@@ -265,9 +265,195 @@ export class VoiceService {
     }
 
     /**
+     * Parseo avanzado de fecha absoluta (ej: "Lunes 2", "2 de Febrero", "5 de Enero")
+     */
+    private parseAbsoluteDate(text: string, baseDateIso: string): string | null {
+        try {
+            const lower = text.toLowerCase();
+            const currentYear = new Date().getFullYear();
+            const months = [
+                'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+                'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+            ];
+
+            // Match "2 de febrero" or "2 febrero"
+            const dateMatch = lower.match(/\b(\d{1,2})\s*(?:de)?\s+([a-z]+)\b/);
+            if (dateMatch) {
+                const day = parseInt(dateMatch[1]);
+                const monthName = dateMatch[2];
+                const monthIndex = months.findIndex(m => m === monthName);
+
+                if (monthIndex >= 0) {
+                    // Create date for current year
+                    let d = new Date(currentYear, monthIndex, day, 12, 0, 0);
+                    return this.toIsoDate(d);
+                }
+            }
+
+            // Match "Lunes 2" (Risk: "2" could be quantity. format usually "Lunes 2" or "Martes 20")
+            // We look for DayOfWeek + Number
+            const dowMatch = lower.match(/\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\s+(\d{1,2})\b/);
+            if (dowMatch) {
+                const day = parseInt(dowMatch[2]);
+                const now = new Date();
+                let d = new Date(now.getFullYear(), now.getMonth(), day, 12, 0, 0);
+
+                if (d.getDate() !== day) {
+                    // Invalid date (e.g. Feb 30)
+                } else {
+                    if (d.getTime() < now.getTime() - 86400000 * 2) {
+                        d.setMonth(d.getMonth() + 1);
+                    }
+                    return this.toIsoDate(d);
+                }
+            }
+
+            return null;
+
+        } catch (e) {
+            console.error('Error parsing absolute date', e);
+            return null;
+        }
+    }
+
+    parseSentence(sentence: string, baseDateIso?: string): {
+        passenger: string | null,
+        destination: string | null,
+        description: string,
+        amount: number,
+        time: string | null,
+        date: string | null,
+        packageType: string | null,
+        section: 'ida' | 'vuelta' | 'encomienda' | 'observaciones',
+        quantity: number
+        detectedLocation: string | null
+    } {
+        console.log('Original sentence to parse:', sentence);
+        const lower = sentence.toLowerCase();
+
+        // --- 1. DETECT SECTION ---
+        let section: 'ida' | 'vuelta' | 'encomienda' | 'observaciones' = 'observaciones'; // Default fallback
+
+        if (/\b(encomiendas?|paquetes?|cajas?|sobres?)\b/.test(lower)) {
+            section = 'encomienda';
+        } else if (/\b(ir|ida)\b/.test(lower)) {
+            section = 'ida';
+        } else if (/\b(volver|vuelta)\b/.test(lower)) {
+            section = 'vuelta';
+        }
+
+        // --- 2. DETECT DATE ---
+        let date = this.parseAbsoluteDate(sentence, baseDateIso || '');
+        if (!date) {
+            date = this.parseDate(sentence, baseDateIso);
+        }
+
+        // --- 3. EXTRACCIONES SIMPLES ---
+        const time = this.parseTime(sentence);
+
+        // --- 4. DETECT LOCATION (For Pricing) ---
+        let detectedLocation = null;
+        if (lower.includes('resistencia') || lower.includes('resis')) detectedLocation = 'Resistencia';
+        if (lower.includes('corrientes') || lower.includes('ctes')) detectedLocation = 'Corrientes';
+
+        // --- 5. DETECT QUANTITY ---
+        let quantity = 1;
+        const qtyMatch = lower.match(/\b(\d+|un|una|dos|tres|cuatro|cinco)\s*(?:lugares|asientos|personas?|pasajeros?)\b/);
+        if (qtyMatch) {
+            const valStr = qtyMatch[1];
+            if (valStr === 'un' || valStr === 'una') quantity = 1;
+            else if (valStr === 'dos') quantity = 2;
+            else if (valStr === 'tres') quantity = 3;
+            else if (valStr === 'cuatro') quantity = 4;
+            else if (valStr === 'cinco') quantity = 5;
+            else quantity = parseInt(valStr) || 1;
+        }
+
+        // --- 6. MONTO ---
+        let amountMatch = null;
+        let amountStr = '';
+        let amount = 0;
+
+        amountMatch = sentence.match(/\$\s*(\d+(?:[.,]\d+)*\s?(?:mil)?)/i);
+        if (!amountMatch) amountMatch = sentence.match(/(\d+(?:[.,]\d+)*\s?(?:mil)?)\s*(?:pesos?)/i);
+        if (!amountMatch) amountMatch = sentence.match(/(?:importe|monto|total)\s+(\d+(?:[.,]\d+)*\s?(?:mil)?)/i);
+
+        if (amountMatch) {
+            amountStr = amountMatch[1] || amountMatch[0];
+            amount = this.parseAmount(amountStr);
+        }
+
+        // --- 7. PAQUETE ---
+        let packageType = null;
+        if (section === 'encomienda') {
+            const pkg = this.detectPackageType(sentence);
+            packageType = pkg.type;
+        }
+
+        // --- 8. CLEANUP FOR DESCRIPTION/PASSENGER ---
+        let clean = sentence;
+
+        // Clean dates
+        clean = clean.replace(/\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\s+\d{1,2}\b/gi, ' ');
+        clean = clean.replace(/\b\d{1,2}\s+(?:de)?\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/gi, ' ');
+        clean = clean.replace(/\b(hoy|mañana|pasado\s+mañana)\b/gi, ' ');
+
+        // Clean Section
+        clean = clean.replace(/\b(ir|ida|volver|vuelta|encomiendas?)\b/gi, ' ');
+
+        // Clean Quantity
+        clean = clean.replace(/\b(\d+|un|una|dos|tres|cuatro|cinco)\s*(?:lugares|asientos|personas?|pasajeros?)\b/gi, ' ');
+
+        // Clean Time/Amount using existing helper logic
+        clean = this.cleanForPassengerDestination(clean, amountStr, time);
+
+        // --- 9. AGGRESSIVE CLEANUP OF DATE/LOCATION LEFTOVERS FROM NAME ---
+        // (Fix for: "De Febrero Virginia De Corrientes")
+
+        // 9.1 Remove months completely (often left as "de febrero")
+        const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        for (const m of months) {
+            // Remove "X de [month]", "de [month]", " [month]"
+            clean = clean.replace(new RegExp(`\\b(?:de\\s+)?${m}\\b`, 'gi'), ' ');
+        }
+
+        // 9.2 Remove locations completely (including synonyms)
+        clean = clean.replace(/\b(Resistencia|Resis|Corrientes|Ctes)\b/gi, ' ');
+        clean = clean.replace(/\b(de\s+)?(Resistencia|Resis|Corrientes|Ctes)\b/gi, ' '); // catch "de corrientes"
+
+        // 9.3 Remove lingering "de" if isolated or at start/end
+        // "Maria de los Angeles" is valid, but "de febrero" -> "de " -> " "
+        // But removing ALL "de" might break names like "De La Cruz".
+        // Heuristic: If we removed a month/location, we might have left a stray "de".
+        // Let's rely on cleaning specific phrases first.
+
+        // Get Passenger/Dest
+        let { passenger, destination } = this.parsePassengerDestination(clean);
+        if (passenger) passenger = this.toTitleCase(passenger);
+        if (destination) destination = this.toTitleCase(destination);
+
+        // FALLBACK DESTINATION: If empty, use detectedLocation
+        if (!destination && detectedLocation) {
+            destination = detectedLocation;
+        }
+
+        let description = clean.replace(/\s+/g, ' ').trim();
+        if (passenger && destination) description = `${passenger} a ${destination}`;
+        else if (passenger) description = passenger;
+
+        if (!description) description = 'Sin descripción';
+        description = this.toTitleCase(description);
+
+        // If detectedLocation exists but destination is empty, use detectedLocation as destination?
+        // Maybe better to leave destination as user-spoken destination if any.
+        // User requested: Name should be clean.
+
+        console.log('Parsed result:', { passenger, destination, description, amount, time, date, packageType, section, quantity, detectedLocation });
+
+        return { passenger, destination, description, amount, time, date, packageType, section, quantity, detectedLocation };
+    }
+    /**
      * Parser de fecha (simple): soporta expresiones comunes.
-     * - "hoy", "mañana", "pasado mañana"
-     * - "dentro de 3 días" / "en 3 días"
      */
     public parseDate(text: string, baseDateIso?: string): string | null {
         if (!text) return null;
@@ -408,93 +594,5 @@ export class VoiceService {
             }
         }
         return { type: null, cleanText: text };
-    }
-
-    parseSentence(sentence: string, baseDateIso?: string): { passenger: string | null, destination: string | null, description: string, amount: number, time: string | null, date: string | null, packageType: string | null } {
-        console.log('Original sentence to parse:', sentence);
-
-        // 1. Extraer tiempo PRIMERO
-        const time = this.parseTime(sentence);
-
-        // 1.1 Extraer fecha (si viene en la frase)
-        const date = this.parseDate(sentence, baseDateIso);
-
-        // 2. Buscar el monto con PRIORIDAD en símbolos de moneda y EXCLUYENDO patrones de tiempo
-        let amountMatch = null;
-        let amountStr = '';
-        let amount = 0;
-
-        // PRIORIDAD 1: Números con símbolo $ explícito
-        amountMatch = sentence.match(/\$\s*(\d+(?:[.,]\d+)*\s?(?:mil)?)/i);
-
-        // PRIORIDAD 2: Números seguidos de "pesos/peso"
-        if (!amountMatch) {
-            amountMatch = sentence.match(/(\d+(?:[.,]\d+)*\s?(?:mil)?)\s*(?:pesos?)/i);
-        }
-
-        // PRIORIDAD 3: Números precedidos por palabras clave de dinero
-        if (!amountMatch) {
-            amountMatch = sentence.match(/(?:importe|monto|total)\s+(\d+(?:[.,]\d+)*\s?(?:mil)?)/i);
-        }
-
-        // PRIORIDAD 4: Cualquier número PERO excluyendo los que están seguidos de palabras de tiempo
-        if (!amountMatch) {
-            // Buscar todos los números y filtrar los que NO son de tiempo
-            const allNumbers = sentence.match(/\d+(?:[.,]\d+)*\s?(?:mil)?/gi);
-            if (allNumbers) {
-                for (const num of allNumbers) {
-                    // Obtener el contexto después del número
-                    const numIndex = sentence.indexOf(num);
-                    const afterNum = sentence.substring(numIndex + num.length, numIndex + num.length + 10).toLowerCase();
-
-                    // Si NO está seguido de palabras de tiempo, es probablemente el monto
-                    if (!afterNum.match(/^\s*(?:horas?|hs|y\s+media|de\s+la|mañana|tarde|noche)/)) {
-                        amountStr = num;
-                        amount = this.parseAmount(num);
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (amountMatch && !amountStr) {
-            amountStr = amountMatch[1] || amountMatch[0];
-            amount = this.parseAmount(amountStr);
-        }
-
-        // 3. Detectar Tipo de Encomienda
-        let textForDescription = sentence;
-        // Solo intentamos detectar tipo si NO es un viaje de pasajero obvio, a menos que queramos soportar todo.
-        // Asumiremos que si detecta la palabra clave, es el tipo.
-        const pkg = this.detectPackageType(sentence);
-        const packageType = pkg.type;
-        // Opcional: ¿removemos la palabra del texto original?
-        // textForDescription = pkg.cleanText; 
-
-        // 4. Extraer pasajero/destino y descripción final
-        const cleaned = this.cleanForPassengerDestination(textForDescription, amountStr, time);
-        let { passenger, destination } = this.parsePassengerDestination(cleaned);
-        if (passenger) passenger = this.toTitleCase(passenger);
-        if (destination) destination = this.toTitleCase(destination);
-
-        let description = cleaned;
-        if (passenger && destination) {
-            description = `${passenger} a ${destination}`;
-        } else if (passenger && !destination) {
-            description = passenger;
-        }
-
-        description = description
-            .replace(/\s+/g, ' ')
-            .trim();
-
-        if (!description) {
-            description = 'Sin descripción';
-        }
-
-        description = this.toTitleCase(description);
-        console.log('Parsed result:', { passenger, destination, description, amount, time, date, packageType });
-
-        return { passenger, destination, description, amount, time, date, packageType };
     }
 }

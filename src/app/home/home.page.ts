@@ -53,33 +53,23 @@ export class HomePage {
   // Signal to track which section is currently recording
   public recordingSection = signal<'ida' | 'vuelta' | 'encomienda' | null>(null);
 
-  async recordVoice(section: 'ida' | 'vuelta' | 'encomienda') {
+  async recordVoice(section?: 'ida' | 'vuelta' | 'encomienda') {
     this.haptics.impactLight();
 
     // If already recording
     if (this.isRecording()) {
-      // If clicking the SAME button -> STOP
-      if (this.recordingSection() === section) {
-        this.voice.stopListening();
-        this.recordingSection.set(null);
-        return;
-      } else {
-        // If clicking a DIFFERENT button while recording -> Ignore or Stop previous?
-        // Let's stop previous and start new for safety, or just block.
-        // For simplicity: Stop previous, don't start new immediately to avoid confusion.
-        await this.voice.stopListening();
-        this.recordingSection.set(null);
-        return;
-      }
+      await this.voice.stopListening();
+      this.recordingSection.set(null);
+      return;
     }
 
-    // Start Recording
-    this.recordingSection.set(section);
+    // Start Recording state (UI visual)
+    this.recordingSection.set(section || 'ida'); // Visual feedback default
 
     try {
       const toastStart = await this.toastCtrl.create({
-        message: `🎤 Escuchando para ${section.toUpperCase()}...`,
-        duration: 1000,
+        message: `🎤 Escuchando...`,
+        duration: 2000,
         position: 'top',
         color: 'warning'
       });
@@ -90,19 +80,67 @@ export class HomePage {
       if (sentence) {
         console.log("Procesando entrada de voz:", sentence);
 
-        const toastHeard = await this.toastCtrl.create({
-          message: `👂 Escuché: "${sentence}"`,
-          duration: 2000,
-          position: 'top',
-          color: 'dark'
-        });
-        await toastHeard.present();
-
         const parsed = this.voice.parseSentence(sentence, this.currentDate());
-        const targetDate = parsed.date || this.currentDate();
 
-        // LOGIC: Use the explicitly selected section
-        const targetSection = section;
+        // 1. DATE HANDLING & NAVIGATION
+        const targetDate = parsed.date || this.currentDate();
+        if (targetDate !== this.currentDate()) {
+          console.log(`Fecha detectada diferente (${targetDate}). Navegando...`);
+          await this.db.updateDate(targetDate);
+          const navToast = await this.toastCtrl.create({
+            message: `📅 Navegando al ${targetDate}`,
+            duration: 2000,
+            position: 'bottom',
+            color: 'secondary'
+          });
+          await navToast.present();
+        }
+
+        // 2. SECTION HANDLING
+        let targetSection = parsed.section;
+
+        // 3. PRICING AUTOMATION
+        let amount = parsed.amount;
+
+        // Prioridad: Si NO se dictó monto (amount == 0), buscamos en tabla rates
+        if (amount === 0) {
+          const loc = parsed.detectedLocation;
+          const isEncomienda = targetSection === 'encomienda';
+
+          if (loc) {
+            const rate = await this.db.getRate(loc, targetSection);
+            if (rate > 0) {
+              amount = rate;
+              const toast = await this.toastCtrl.create({
+                message: `💰 Tarifa Auto: $${amount} (${loc})`,
+                duration: 2000,
+                position: 'middle',
+                color: 'success'
+              });
+              toast.present();
+            }
+          } else if (isEncomienda) {
+            // Fallback for Encomienda without clear location -> usage of "Resistencia" rate (25000)
+            let rate = await this.db.getRate('Resistencia', 'encomienda');
+
+            // HARD FALLBACK if DB fails
+            if (rate === 0) {
+              console.warn('DB Rate for Encomienda (Resistencia) was 0. Using hardcoded 25000.');
+              rate = 25000;
+            }
+
+            if (rate > 0) {
+              amount = rate;
+              const toast = await this.toastCtrl.create({
+                message: `📦 Envío Estándar: $${amount}`,
+                duration: 2000,
+                position: 'middle',
+                color: 'warning'
+              });
+              toast.present();
+            }
+          }
+        }
 
         console.log("Iniciando INSERT en DB...");
         await this.db.addTrip({
@@ -111,12 +149,13 @@ export class HomePage {
           passenger: parsed.passenger || undefined,
           destination: parsed.destination || undefined,
           description: parsed.description,
-          amount: parsed.amount,
+          amount: amount,
           time: parsed.time || undefined,
-          packageType: parsed.packageType || undefined
+          packageType: parsed.packageType || undefined,
+          quantity: parsed.quantity || 1
         });
 
-        // Notifications logic remains same
+        // Notifications logic
         if (parsed.time && targetDate) {
           await this.notifications.scheduleOneHourBefore({
             date: targetDate,
@@ -126,16 +165,18 @@ export class HomePage {
           });
         }
 
-        console.log("✅ Registro INSERT exitoso. Iniciando recarga SELECT...");
-        await this.db.loadTrips(this.currentDate());
+        console.log("✅ Registro INSERT exitoso. Refreshing...");
+        if (targetDate === this.currentDate()) {
+          await this.db.loadTrips(targetDate);
+        }
 
         this.haptics.success();
-        this.cdr.detectChanges(); // Refresh UI
-        this.recordingSection.set(null); // Reset state
+        this.cdr.detectChanges();
+        this.recordingSection.set(null);
 
         const toastSuccess = await this.toastCtrl.create({
-          message: `✅ Guardado en ${targetSection.toUpperCase()}`,
-          duration: 2000,
+          message: `✅ Guardado en ${targetSection.toUpperCase()} (${parsed.quantity} lug)`,
+          duration: 3000,
           position: 'top',
           color: 'success'
         });
@@ -174,14 +215,19 @@ export class HomePage {
           handler: () => { this.showManualForm('ida'); }
         },
         {
+          text: 'Viaje de VUELTA',
+          icon: 'arrow-back',
+          handler: () => { this.showManualForm('vuelta'); }
+        },
+        {
           text: 'Envíar ENCOMIENDA',
           icon: 'cube',
           handler: () => { this.showManualForm('encomienda'); }
         },
         {
-          text: 'Viaje de VUELTA',
-          icon: 'arrow-back',
-          handler: () => { this.showManualForm('vuelta'); }
+          text: 'Nota / Observación',
+          icon: 'document-text',
+          handler: () => { this.showManualForm('observaciones'); }
         },
         {
           text: 'Cancelar',
@@ -194,36 +240,61 @@ export class HomePage {
     await actionSheet.present();
   }
 
-  async showManualForm(section: 'ida' | 'vuelta' | 'encomienda') {
+  async editTrip(trip: Trip) {
+    // Determinar la sección del trip para abrir el form correcto
+    const section = trip.section as 'ida' | 'vuelta' | 'encomienda' | 'observaciones';
+    await this.showManualForm(section, trip);
+  }
+
+  async showManualForm(section: 'ida' | 'vuelta' | 'encomienda' | 'observaciones', tripToEdit?: Trip) {
     const isEncomienda = section === 'encomienda';
+    const isObservacion = section === 'observaciones';
+    const isEdit = !!tripToEdit;
 
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
-    const currentTime = `${hours}:${minutes}`;
+    let defaultTime = `${hours}:${minutes}`;
+
+    // Valores iniciales (vacíos o del trip)
+    const initVal = {
+      passenger: tripToEdit?.passenger || '',
+      destination: tripToEdit?.destination || '',
+      description: tripToEdit?.description || '',
+      amount: tripToEdit?.amount || '',
+      time: tripToEdit?.time || defaultTime,
+      packageType: tripToEdit?.packageType || '',
+      quantity: tripToEdit?.quantity || '1'
+    };
 
     const inputs: any[] = [];
 
-    if (isEncomienda) {
+    if (isObservacion) {
       inputs.push(
-        { name: 'packageType', type: 'text', placeholder: 'Tipo (Sobre, Caja, Bici...)' },
-        { name: 'destination', type: 'text', placeholder: 'Destino (Pueblo/Ciudad)' },
-        { name: 'description', type: 'text', placeholder: 'Dirección (Calle y Número)' },
-        { name: 'amount', type: 'number', placeholder: 'Importe ($)' },
-        { name: 'time', type: 'time', placeholder: 'Hora (Requerido)', value: currentTime }
+        { name: 'description', type: 'textarea', placeholder: 'Escribe tu nota aquí...', value: initVal.description },
+        { name: 'time', type: 'time', placeholder: 'Hora (opcional)', value: initVal.time }
+      );
+    } else if (isEncomienda) {
+      inputs.push(
+        { name: 'packageType', type: 'text', placeholder: 'Tipo (Sobre, Caja, Bici...)', value: initVal.packageType },
+        { name: 'destination', type: 'text', placeholder: 'Destino (Pueblo/Ciudad)', value: initVal.destination },
+        { name: 'description', type: 'text', placeholder: 'Dirección (Calle y Número)', value: initVal.description },
+        { name: 'amount', type: 'number', placeholder: 'Importe ($)', value: initVal.amount },
+        { name: 'time', type: 'time', placeholder: 'Hora (Requerido)', value: initVal.time }
       );
     } else {
       inputs.push(
-        { name: 'passenger', type: 'text', placeholder: 'Pasajero (opcional)' },
-        { name: 'destination', type: 'text', placeholder: 'Destino (opcional)' },
-        { name: 'description', type: 'text', placeholder: 'Descripción (Nombre/Lugar)' },
-        { name: 'amount', type: 'number', placeholder: 'Importe ($)' },
-        { name: 'time', type: 'time', placeholder: 'Hora (opcional)', value: currentTime }
+        { name: 'passenger', type: 'text', placeholder: 'Pasajero (opcional)', value: initVal.passenger },
+        { name: 'quantity', type: 'number', placeholder: 'Lugares (1)', value: initVal.quantity },
+        { name: 'destination', type: 'text', placeholder: 'Destino (opcional)', value: initVal.destination },
+        { name: 'description', type: 'text', placeholder: 'Descripción (Nombre/Lugar)', value: initVal.description },
+        { name: 'amount', type: 'number', placeholder: 'Importe ($)', value: initVal.amount },
+        { name: 'time', type: 'time', placeholder: 'Hora (opcional)', value: initVal.time }
       );
     }
 
     const alert = await this.alertCtrl.create({
-      header: isEncomienda ? 'Nueva Encomienda' : (section === 'ida' ? 'Carga Manual (IDA)' : 'Carga Manual (VUELTA)'),
+      header: isEdit ? 'Editar Registro' : (isObservacion ? 'Nueva Nota' : (isEncomienda ? 'Nueva Encomienda' : (section === 'ida' ? 'Carga Manual (IDA)' : 'Carga Manual (VUELTA)'))),
       inputs: inputs,
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
@@ -231,12 +302,11 @@ export class HomePage {
           text: 'Guardar',
           handler: async (data) => {
             // Validación específica
-            if (!data.description || !data.amount) {
-              return false; // Mantiene abierto si faltan datos básicos
+            if (isObservacion && !data.description) {
+              return false;
             }
 
             if (isEncomienda && !data.time) {
-              // Feedback visual podría requerirse, por ahora impedimos guardar
               const toast = await this.toastCtrl.create({
                 message: '⚠️ La hora es obligatoria para encomiendas',
                 duration: 2000,
@@ -248,33 +318,49 @@ export class HomePage {
             }
 
             try {
-              const cleanAmount = this.voice.parseAmount(data.amount);
+              const cleanAmount = data.amount ? this.voice.parseAmount(data.amount.toString()) : 0;
               // Sanitización
               const passenger = (data.passenger || '').trim();
               const destination = (data.destination || '').trim();
               const packageType = (data.packageType || '').trim();
+              const quantity = data.quantity ? parseInt(data.quantity) : 1;
 
-              await this.db.addTrip({
-                date: this.currentDate(),
+              const tripData = {
+                date: this.currentDate(), // Si es edit, mantenemos la fecha? Asumamos que edita el día actual, o podriamos usar tripToEdit.date
                 section: section,
                 passenger: passenger ? passenger : undefined,
                 destination: destination ? destination : undefined,
-                description: data.description,
+                description: data.description || 'Nota sin texto',
                 amount: cleanAmount,
                 time: data.time || undefined,
-                packageType: packageType ? packageType : undefined
-              });
+                packageType: packageType ? packageType : undefined,
+                quantity: quantity
+              };
+
+              if (isEdit && tripToEdit && tripToEdit.id) {
+                // UPDATE
+                await this.db.updateTrip({
+                  ...tripToEdit,
+                  ...tripData,
+                  date: tripToEdit.date // Preserve original date
+                });
+              } else {
+                // CREATE
+                await this.db.addTrip(tripData);
+              }
 
               if (data.time) {
+                // TODO: Update notification if edited? For now simple add.
                 await this.notifications.scheduleOneHourBefore({
-                  date: this.currentDate(),
+                  date: isEdit && tripToEdit ? tripToEdit.date : this.currentDate(),
                   time: data.time,
                   description: data.description,
                   section: section,
                 });
               }
               this.haptics.success();
-              await this.db.loadTrips(this.currentDate());
+              // Refresh
+              if (this.currentDate()) await this.db.loadTrips(this.currentDate());
               this.cdr.detectChanges();
             } catch (e) {
               const errAlert = await this.alertCtrl.create({
@@ -293,11 +379,26 @@ export class HomePage {
   }
 
   async deleteTrip(trip: Trip) {
-    if (trip.id) {
-      await this.db.deleteTrip(trip.id, this.currentDate());
-      this.haptics.impactLight();
-      this.cdr.detectChanges();
-    }
+    // Confirm delete?
+    const alert = await this.alertCtrl.create({
+      header: 'Confirmar',
+      message: '¿Borrar este elemento?',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Borrar',
+          role: 'destructive',
+          handler: async () => {
+            if (trip.id) {
+              await this.db.deleteTrip(trip.id, this.currentDate());
+              this.haptics.impactLight();
+              this.cdr.detectChanges();
+            }
+          }
+        }
+      ]
+    });
+    await alert.present();
   }
 
   async shareSummary() {
